@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut, 
   ExternalLink,
-  Copy
+  Copy,
+  Truck
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -22,7 +23,7 @@ export default function Home() {
     {
       id: 'pos',
       name: 'POS Terminal',
-      description: 'Take orders and manage tables',
+      description: 'Take orders and process payments',
       url: '/pos',
       icon: Receipt,
       color: 'bg-blue-500 text-white',
@@ -36,6 +37,15 @@ export default function Home() {
       icon: ChefHat,
       color: 'bg-orange-500 text-white',
       recommended: 'Large Screen',
+    },
+    {
+      id: 'delivery',
+      name: 'Delivery Interface',
+      description: 'Confirm delivery of ready orders',
+      url: '/delivery',
+      icon: Truck,
+      color: 'bg-green-500 text-white',
+      recommended: 'Smartphone',
     },
     {
       id: 'customer',
