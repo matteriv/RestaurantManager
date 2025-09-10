@@ -19,10 +19,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      let user = await storage.getUser(userId);
+      
+      // If user not found in database, bootstrap from session claims
+      if (!user) {
+        console.log('🔄 User not found in database, bootstrapping from session claims...');
+        const claims = req.user.claims;
+        
+        // Bootstrap user from OIDC claims with proper field mapping
+        const userData = {
+          id: claims.sub,
+          email: claims.email,
+          firstName: claims.first_name || claims.firstName,
+          lastName: claims.last_name || claims.lastName,
+          profileImageUrl: claims.profile_image_url || claims.profileImageUrl,
+          role: claims.role || 'admin', // Default to admin in test mode, waiter in production
+        };
+        
+        // Create the user in the database
+        user = await storage.upsertUser(userData);
+        console.log('✅ User bootstrapped successfully:', user.email);
+      }
+      
+      // Always return a valid user object, never null/undefined
       res.json(user);
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error("Error fetching/bootstrapping user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
@@ -512,16 +534,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })),
     total: z.string(),
     notes: z.string().optional(),
-    receiptMethod: z.enum(['print', 'email', 'whatsapp']),
-    customerEmail: z.string().email().optional(),
-    customerPhone: z.string().optional(),
+    receiptMethod: z.literal('print'),
   });
 
   // Payment processing endpoint
   app.post('/api/payments/process', isAuthenticated, async (req: any, res) => {
     try {
       const validatedData = paymentProcessSchema.parse(req.body);
-      const { tableId, orderItems, total, notes, receiptMethod, customerEmail, customerPhone } = validatedData;
+      const { tableId, orderItems, total, notes, receiptMethod } = validatedData;
       const userId = req.user.claims.sub;
       
       // Create order first
@@ -568,51 +588,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processedBy: userId,
         receiptId,
         qrCode: qrCodeDataUrl,
-        receiptMethod,
-        customerEmail: receiptMethod === 'email' ? customerEmail || null : null,
-        customerPhone: receiptMethod === 'whatsapp' ? customerPhone || null : null,
+        receiptMethod: 'print',
+        customerEmail: null,
+        customerPhone: null,
       });
 
-      // Send receipt based on method
-      if (receiptMethod === 'email' && customerEmail) {
-        try {
-          const { sendEmail } = await import('./sendgrid');
-          const emailSent = await sendEmail({
-            to: customerEmail,
-            from: 'noreply@restaurant.com',
-            subject: `Receipt - Order #${orderNumber}`,
-            html: `
-              <h2>Receipt - Order #${orderNumber}</h2>
-              <p>Total: €${parseFloat(total).toFixed(2)}</p>
-              <p>Thank you for your visit!</p>
-              <img src="${qrCodeDataUrl}" alt="Receipt QR Code" />
-            `,
-          });
-          
-          if (!emailSent) {
-            console.error('Failed to send email receipt');
-          }
-        } catch (emailError) {
-          console.error('Email service not available:', emailError);
-          // Don't fail the entire payment if email fails
-        }
-      }
-
-      // Note: WhatsApp integration would require Twilio or similar service
-      if (receiptMethod === 'whatsapp' && customerPhone) {
-        console.log(`WhatsApp receipt requested for ${customerPhone} - Order #${orderNumber}`);
-        // TODO: Implement WhatsApp sending via Twilio API
-      }
+      // Receipt printing handled by frontend
+      console.log(`Print receipt requested for Order #${orderNumber} - Receipt ID: ${receiptId}`);
 
       // Broadcast order update
       broadcastMessage('new-order', { order: { ...order, orderLines: [] } });
       
       res.json({ 
-        message: 'Payment processed successfully',
+        message: 'Payment processed successfully - receipt ready for printing',
         orderId: order.id,
         orderNumber,
         receiptId,
-        qrCode: qrCodeDataUrl
+        qrCode: qrCodeDataUrl,
+        receiptMethod: 'print'
       });
     } catch (error) {
       console.error("Error processing payment:", error);

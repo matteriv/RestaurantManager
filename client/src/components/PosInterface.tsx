@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart, Mail, MessageCircle, Printer } from 'lucide-react';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart, Printer } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import type { MenuItem, MenuCategory, Table, OrderLine, InsertOrderLine } from '@shared/schema';
 
@@ -26,9 +26,7 @@ export function PosInterface() {
   const [showTableDialog, setShowTableDialog] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [receiptMethod, setReceiptMethod] = useState<'print' | 'email' | 'whatsapp'>('print');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [receiptMethod, setReceiptMethod] = useState<'print'>('print');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -97,15 +95,16 @@ export function PosInterface() {
       return response.json();
     },
     onSuccess: () => {
+      // Print receipt before clearing order data
+      printReceipt();
+      
       setOrderItems([]);
       setOrderNotes('');
       setSelectedTable(null);
       setShowPaymentDialog(false);
-      setCustomerEmail('');
-      setCustomerPhone('');
       toast({
         title: "Payment processed",
-        description: "Order completed and receipt sent successfully.",
+        description: "Order completed and receipt printed successfully.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
@@ -251,24 +250,6 @@ export function PosInterface() {
       return;
     }
 
-    if (receiptMethod === 'email' && !customerEmail) {
-      toast({
-        title: "Email required",
-        description: "Please enter customer email address.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (receiptMethod === 'whatsapp' && !customerPhone) {
-      toast({
-        title: "Phone required",
-        description: "Please enter customer phone number for WhatsApp.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const paymentData = {
       tableId: selectedTable.id,
       orderItems: orderItems.map(item => ({
@@ -280,12 +261,80 @@ export function PosInterface() {
       })),
       total: calculateTotal().toString(),
       notes: orderNotes,
-      receiptMethod,
-      customerEmail: receiptMethod === 'email' ? customerEmail : undefined,
-      customerPhone: receiptMethod === 'whatsapp' ? customerPhone : undefined,
+      receiptMethod: 'print',
     };
 
     paymentMutation.mutate(paymentData);
+  };
+
+  const printReceipt = () => {
+    // Create printable receipt content
+    const receiptContent = `
+      <div style="font-family: monospace; width: 300px; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2>Restaurant Receipt</h2>
+          <p>Table: ${selectedTable?.number}</p>
+          <p>Date: ${new Date().toLocaleDateString()}</p>
+          <p>Time: ${new Date().toLocaleTimeString()}</p>
+        </div>
+        <hr>
+        <div style="margin: 20px 0;">
+          ${orderItems.map(item => `
+            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+              <span>${item.menuItem.name} x${item.quantity}</span>
+              <span>€${Number(item.totalPrice).toFixed(2)}</span>
+            </div>
+          `).join('')}
+        </div>
+        <hr>
+        <div style="margin: 10px 0;">
+          <div style="display: flex; justify-content: space-between;">
+            <span>Subtotal:</span>
+            <span>€${calculateSubtotal().toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span>Tax (22%):</span>
+            <span>€${calculateTax().toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em;">
+            <span>Total:</span>
+            <span>€${calculateTotal().toFixed(2)}</span>
+          </div>
+        </div>
+        ${orderNotes ? `<p style="margin-top: 20px;">Notes: ${orderNotes}</p>` : ''}
+        <div style="text-align: center; margin-top: 20px;">
+          <p>Thank you for your visit!</p>
+        </div>
+      </div>
+    `;
+
+    // Open print window
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Receipt</title>
+            <style>
+              @media print {
+                body { margin: 0; }
+                @page { size: 80mm auto; margin: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            ${receiptContent}
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
   };
 
   const sendToKitchen = () => {
@@ -653,63 +702,56 @@ export function PosInterface() {
                       <span className="font-medium">Total Amount:</span>
                       <span className="text-xl font-bold text-primary">€{calculateTotal().toFixed(2)}</span>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Table: {selectedTable?.number} | Items: {orderItems.length}
+                    <div className="text-sm text-muted-foreground mb-3">
+                      Items: {orderItems.length}
+                    </div>
+                    
+                    {/* Table Selection in Payment Dialog */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Table:</label>
+                      {!selectedTable ? (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-sm text-amber-800 mb-2">Please select a table first</p>
+                          <div className="grid grid-cols-4 gap-1">
+                            {tables.slice(0, 8).map((table) => (
+                              <Button
+                                key={table.id}
+                                size="sm"
+                                variant={selectedTable?.id === table.id ? 'default' : 'outline'}
+                                className="text-xs h-8"
+                                onClick={() => setSelectedTable(table)}
+                                disabled={table.status === 'occupied'}
+                                data-testid={`quick-table-${table.id}`}
+                              >
+                                T{table.number}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded">
+                          <span className="text-sm text-green-800">Table {selectedTable.number}</span>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => setSelectedTable(null)}
+                            data-testid="change-table"
+                          >
+                            Change
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
                   <div className="space-y-3">
-                    <h4 className="font-medium">Receipt Delivery Method</h4>
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button
-                        variant={receiptMethod === 'print' ? 'default' : 'outline'}
-                        onClick={() => setReceiptMethod('print')}
-                        className="h-16 flex-col"
-                        data-testid="receipt-print"
-                      >
-                        <Printer className="w-5 h-5 mb-1" />
-                        <span className="text-xs">Print</span>
-                      </Button>
-                      <Button
-                        variant={receiptMethod === 'email' ? 'default' : 'outline'}
-                        onClick={() => setReceiptMethod('email')}
-                        className="h-16 flex-col"
-                        data-testid="receipt-email"
-                      >
-                        <Mail className="w-5 h-5 mb-1" />
-                        <span className="text-xs">Email</span>
-                      </Button>
-                      <Button
-                        variant={receiptMethod === 'whatsapp' ? 'default' : 'outline'}
-                        onClick={() => setReceiptMethod('whatsapp')}
-                        className="h-16 flex-col"
-                        data-testid="receipt-whatsapp"
-                      >
-                        <MessageCircle className="w-5 h-5 mb-1" />
-                        <span className="text-xs">WhatsApp</span>
-                      </Button>
+                    <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
+                      <Printer className="w-8 h-8 mr-3 text-blue-600" />
+                      <div>
+                        <h4 className="font-medium text-blue-900">Print Receipt</h4>
+                        <p className="text-sm text-blue-700">Receipt will be printed automatically</p>
+                      </div>
                     </div>
-
-                    {receiptMethod === 'email' && (
-                      <Input
-                        type="email"
-                        placeholder="Customer email address"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        data-testid="customer-email"
-                      />
-                    )}
-
-                    {receiptMethod === 'whatsapp' && (
-                      <Input
-                        type="tel"
-                        placeholder="Customer phone number"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        data-testid="customer-phone"
-                      />
-                    )}
                   </div>
 
                   <div className="flex space-x-2 pt-4">
@@ -726,7 +768,7 @@ export function PosInterface() {
                       disabled={paymentMutation.isPending}
                       data-testid="confirm-payment"
                     >
-                      {paymentMutation.isPending ? 'Processing...' : 'Confirm Payment'}
+                      {paymentMutation.isPending ? 'Processing...' : 'Process Payment & Print'}
                     </Button>
                   </div>
                 </div>

@@ -107,20 +107,77 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.email,
-        set: {
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          profileImageUrl: userData.profileImageUrl,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
+    // If ID is provided (like OIDC sub), use it as primary key
+    if (userData.id) {
+      // Try to find existing user by ID first
+      let existingUser = await this.getUser(userData.id);
+      
+      if (existingUser) {
+        // Update existing user by ID
+        const [user] = await db
+          .update(users)
+          .set({
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            profileImageUrl: userData.profileImageUrl,
+            role: userData.role || existingUser.role, // Keep existing role if not specified
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userData.id))
+          .returning();
+        return user;
+      } else {
+        // Check if user exists by email (handle migration case)
+        const userByEmailResult = userData.email ? await db.select().from(users).where(eq(users.email, userData.email)) : [];
+        const [userByEmail] = userByEmailResult;
+        
+        if (userByEmail) {
+          // Update existing user by email, set the new ID
+          const [user] = await db
+            .update(users)
+            .set({
+              id: userData.id, // Update to use OIDC sub as ID
+              firstName: userData.firstName,
+              lastName: userData.lastName,
+              profileImageUrl: userData.profileImageUrl,
+              role: userData.role || userByEmail.role, // Keep existing role if not specified
+              updatedAt: new Date(),
+            })
+            .where(eq(users.email, userData.email!))
+            .returning();
+          return user;
+        } else {
+          // Insert new user with specified ID
+          const [user] = await db
+            .insert(users)
+            .values({
+              ...userData,
+              id: userData.id,
+              role: userData.role || 'waiter', // Default role
+            })
+            .returning();
+          return user;
+        }
+      }
+    } else {
+      // Fallback to email-based upsert (original behavior)
+      const [user] = await db
+        .insert(users)
+        .values(userData)
+        .onConflictDoUpdate({
+          target: users.email,
+          set: {
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            profileImageUrl: userData.profileImageUrl,
+            role: userData.role,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      return user;
+    }
   }
 
   // Department operations

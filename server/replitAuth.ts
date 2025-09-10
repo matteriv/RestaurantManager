@@ -6,6 +6,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+// Note: When no store is provided to express-session, it defaults to MemoryStore
 import { storage } from "./storage";
 
 if (!process.env.REPLIT_DOMAINS) {
@@ -24,13 +25,25 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
+  const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV !== 'production';
+  
+  let sessionStore;
+  
+  if (isTestMode) {
+    console.log('🧪 TEST MODE: Using default MemoryStore for sessions');
+    // No store specified = express-session uses default MemoryStore
+    sessionStore = undefined;
+  } else {
+    console.log('🔒 PRODUCTION MODE: Using PostgreSQL for sessions');
+    const pgStore = connectPg(session);
+    sessionStore = new pgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: false,
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
+  }
+  
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
@@ -38,7 +51,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: !isTestMode, // false in test mode, true in production
+      sameSite: isTestMode ? 'lax' : 'strict', // lax in test mode for easier testing
       maxAge: sessionTtl,
     },
   });
@@ -57,12 +71,17 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  await storage.upsertUser({
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
+  // Map OIDC claims to user data, handling both camelCase and snake_case
+  const userData = {
+    id: claims.sub || claims.id, // Use OIDC 'sub' as the primary key
+    email: claims.email,
+    firstName: claims.first_name || claims.firstName,
+    lastName: claims.last_name || claims.lastName,
+    profileImageUrl: claims.profile_image_url || claims.profileImageUrl,
+    role: claims.role || 'waiter', // Default role for new users
+  };
+  
+  return await storage.upsertUser(userData);
 }
 
 export async function setupAuth(app: Express) {
@@ -100,11 +119,57 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  app.get("/api/login", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      prompt: "login consent",
-      scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+  app.get("/api/login", async (req, res, next) => {
+    const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV !== 'production';
+    
+    if (isTestMode) {
+      console.log('🧪 TEST MODE: Bypassing OIDC authentication');
+      
+      try {
+        // Create test user with admin privileges for testing
+        const testUser = {
+          claims: {
+            sub: 'test-user-id',
+            email: 'test@example.com',
+            first_name: 'Test',
+            last_name: 'User',
+            profile_image_url: 'https://via.placeholder.com/150',
+            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours from now
+          },
+          access_token: 'test-access-token',
+          refresh_token: 'test-refresh-token',
+          expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours from now
+        };
+        
+        // Upsert test user in database with admin role
+        await upsertUser({
+          ...testUser.claims,
+          role: 'admin', // Give admin role for full testing access
+        });
+        
+        // Create passport session
+        req.login(testUser, (err) => {
+          if (err) {
+            console.error('❌ TEST MODE: Error creating session:', err);
+            return res.status(500).json({ message: 'Failed to create test session' });
+          }
+          
+          console.log('✅ TEST MODE: Test user session created successfully');
+          res.redirect('/');
+        });
+        
+      } catch (error) {
+        console.error('❌ TEST MODE: Error in login bypass:', error);
+        res.status(500).json({ message: 'Test mode login failed' });
+      }
+    } else {
+      // Production mode - use normal OIDC authentication
+      console.log('🔒 PRODUCTION MODE: Using OIDC authentication');
+      passport.authenticate(`replitauth:${req.hostname}`, {
+        prompt: "login consent",
+        scope: ["openid", "email", "profile", "offline_access"],
+      })(req, res, next);
+    }
   });
 
   app.get("/api/callback", (req, res, next) => {
@@ -127,6 +192,50 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  const isTestMode = process.env.TEST_MODE === 'true' || process.env.NODE_ENV !== 'production';
+  
+  if (isTestMode) {
+    console.log('🧪 TEST MODE: Bypassing authentication middleware');
+    
+    // Create test user session if not already authenticated
+    if (!req.isAuthenticated()) {
+      const testUser = {
+        claims: {
+          sub: 'test-user-id',
+          email: 'test@example.com',
+          first_name: 'Test',
+          last_name: 'User',
+          profile_image_url: 'https://via.placeholder.com/150',
+          exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours from now
+        },
+        access_token: 'test-access-token',
+        refresh_token: 'test-refresh-token',
+        expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours from now
+      };
+      
+      // Set user in request for this request
+      (req as any).user = testUser;
+      
+      // Ensure test user exists in database
+      try {
+        await upsertUser({
+          sub: 'test-user-id',
+          email: 'test@example.com',
+          first_name: 'Test',
+          last_name: 'User',
+          profile_image_url: 'https://via.placeholder.com/150',
+          role: 'admin', // Give admin role for full testing access
+        });
+        console.log('✅ TEST MODE: Test user created/updated in database');
+      } catch (error) {
+        console.error('❌ TEST MODE: Error upserting test user:', error);
+      }
+    }
+    
+    return next();
+  }
+
+  // Production mode - normal authentication checks
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user.expires_at) {

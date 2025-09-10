@@ -245,6 +245,7 @@ export const auditLogRelations = relations(auditLog, ({ one }) => ({
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
+  id: true, // Include id for OIDC sub mapping
   email: true,
   firstName: true,
   lastName: true,
@@ -294,6 +295,10 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
 export const insertPaymentSchema = createInsertSchema(payments).omit({
   id: true,
   createdAt: true,
+}).extend({
+  receiptMethod: z.literal('print').default('print'),
+  customerEmail: z.string().nullable().default(null),
+  customerPhone: z.string().nullable().default(null),
 });
 
 export const insertAuditLogSchema = createInsertSchema(auditLog).omit({
