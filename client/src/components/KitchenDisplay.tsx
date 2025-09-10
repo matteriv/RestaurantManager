@@ -170,6 +170,39 @@ export function KitchenDisplay() {
     updateOrderLineMutation.mutate({ orderLineId, status });
   };
 
+  // Drag and drop handler
+  const onDragEnd = (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    // Check if dropped outside valid area
+    if (!destination) return;
+
+    // Check if dropped in same position
+    if (destination.droppableId === source.droppableId && destination.index === source.index) {
+      return;
+    }
+
+    // Map column IDs to order statuses
+    const statusMap: { [key: string]: string } = {
+      'new-orders': 'new',
+      'preparing-orders': 'preparing', 
+      'ready-orders': 'ready'
+    };
+
+    const newStatus = statusMap[destination.droppableId];
+    if (!newStatus) return;
+
+    // Extract order ID from draggableId (format: order-{id})
+    const orderId = draggableId.replace('order-', '');
+
+    // Update order status
+    if (newStatus === 'preparing') {
+      startOrderMutation.mutate(orderId);
+    } else if (newStatus === 'ready') {
+      markReadyMutation.mutate(orderId);
+    }
+  };
+
   const selectedStationConfig = STATIONS.find(s => s.value === selectedStation);
 
   return (
@@ -240,17 +273,35 @@ export function KitchenDisplay() {
 
       {/* Orders Grid */}
       <div className="p-6">
-        <div className="grid grid-cols-3 gap-6">
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="grid grid-cols-3 gap-6">
           {/* New Orders */}
           <div>
             <h2 className="text-2xl font-bold text-white mb-4">{t('status.new')}</h2>
-            <div className="space-y-4">
-              {newOrders.map(order => (
-                <Card 
-                  key={order.id}
-                  className="bg-blue-500/20 backdrop-blur-sm border-blue-300/30"
-                  data-testid={`new-order-${order.id}`}
+            <Droppable droppableId="new-orders">
+              {(provided, snapshot) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className={`space-y-4 min-h-[200px] p-2 rounded-lg transition-all ${
+                    snapshot.isDraggingOver ? 'bg-blue-500/10 border-2 border-blue-400 border-dashed' : ''
+                  }`}
                 >
+                  {newOrders.map((order, index) => (
+                    <Draggable key={order.id} draggableId={`order-${order.id}`} index={index}>
+                      {(provided, snapshot) => (
+                        <Card 
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`bg-blue-500/20 backdrop-blur-sm border-blue-300/30 transition-all ${
+                            snapshot.isDragging ? 'rotate-2 shadow-2xl scale-105' : ''
+                          }`}
+                          data-testid={`new-order-${order.id}`}
+                        >
+                          <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                            <div className="absolute top-2 right-2 text-blue-300">
+                              <Move className="w-4 h-4" />
+                            </div>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-white">
@@ -284,31 +335,54 @@ export function KitchenDisplay() {
                       ))}
                     
                     {canStartOrder(order) && (
-                      <Button 
-                        onClick={() => startOrder(order.id)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                        data-testid={`start-order-${order.id}`}
-                      >
-                        <Play className="w-4 h-4 mr-2" />
-                        {t('kds.start')}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                            <Button 
+                              onClick={() => startOrder(order.id)}
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                              data-testid={`start-order-${order.id}`}
+                            >
+                              <Play className="w-4 h-4 mr-2" />
+                              {t('kds.start')}
+                            </Button>
+                          )}
+                          </CardContent>
+                          </div>
+                        </Card>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </div>
 
           {/* Preparing Orders */}
           <div>
             <h2 className="text-2xl font-bold text-white mb-4">{t('kds.preparing')}</h2>
-            <div className="space-y-4">
-              {preparingOrders.map(order => (
-                <Card 
-                  key={order.id}
-                  className="bg-yellow-500/20 backdrop-blur-sm border-yellow-300/30"
-                  data-testid={`preparing-order-${order.id}`}
+            <Droppable droppableId="preparing-orders">
+              {(provided, snapshot) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className={`space-y-4 min-h-[200px] p-2 rounded-lg transition-all ${
+                    snapshot.isDraggingOver ? 'bg-yellow-500/10 border-2 border-yellow-400 border-dashed' : ''
+                  }`}
                 >
+                  {preparingOrders.map((order, index) => (
+                    <Draggable key={order.id} draggableId={`order-${order.id}`} index={index}>
+                      {(provided, snapshot) => (
+                        <Card 
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`bg-yellow-500/20 backdrop-blur-sm border-yellow-300/30 transition-all ${
+                            snapshot.isDragging ? 'rotate-2 shadow-2xl scale-105' : ''
+                          }`}
+                          data-testid={`preparing-order-${order.id}`}
+                        >
+                          <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                            <div className="absolute top-2 right-2 text-yellow-300">
+                              <Move className="w-4 h-4" />
+                            </div>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-white">
@@ -343,56 +417,86 @@ export function KitchenDisplay() {
                         </div>
                       ))}
                     
-                    {canCompleteOrder(order) && (
-                      <Button 
-                        onClick={() => markOrderReady(order.id)}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        data-testid={`complete-order-${order.id}`}
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        {t('kds.ready')}
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                            {canCompleteOrder(order) && (
+                              <Button 
+                                onClick={() => markOrderReady(order.id)}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                                data-testid={`complete-order-${order.id}`}
+                              >
+                                <Check className="w-4 h-4 mr-2" />
+                                {t('kds.ready')}
+                              </Button>
+                            )}
+                          </CardContent>
+                          </div>
+                        </Card>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </div>
 
           {/* Ready Orders */}
           <div>
             <h2 className="text-2xl font-bold text-white mb-4">{t('kds.ready_to_serve')}</h2>
-            <div className="space-y-4">
-              {orders
-                .filter(order => order.status === 'ready')
-                .map(order => (
-                  <Card 
-                    key={order.id}
-                    className="bg-green-500/20 backdrop-blur-sm border-green-300/30"
-                    data-testid={`ready-order-${order.id}`}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-white">
-                          {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
-                        </CardTitle>
-                        <Badge className="bg-green-500 text-white">
-                          {t('status.ready')}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center text-green-300">
-                        <Check className="w-8 h-8 mx-auto mb-2" />
-                        <div className="text-lg font-semibold">{t('kds.ready')}</div>
-                        <div className="text-sm text-green-300/80">Pronto da {getElapsedTime(order)}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
+            <Droppable droppableId="ready-orders">
+              {(provided, snapshot) => (
+                <div 
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className={`space-y-4 min-h-[200px] p-2 rounded-lg transition-all ${
+                    snapshot.isDraggingOver ? 'bg-green-500/10 border-2 border-green-400 border-dashed' : ''
+                  }`}
+                >
+                  {orders
+                    .filter(order => order.status === 'ready')
+                    .map((order, index) => (
+                      <Draggable key={order.id} draggableId={`order-${order.id}`} index={index}>
+                        {(provided, snapshot) => (
+                          <Card 
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`bg-green-500/20 backdrop-blur-sm border-green-300/30 transition-all ${
+                              snapshot.isDragging ? 'rotate-2 shadow-2xl scale-105' : ''
+                            }`}
+                            data-testid={`ready-order-${order.id}`}
+                          >
+                            <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                              <div className="absolute top-2 right-2 text-green-300">
+                                <Move className="w-4 h-4" />
+                              </div>
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-white">
+                                    {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
+                                  </CardTitle>
+                                  <Badge className="bg-green-500 text-white">
+                                    {t('status.ready')}
+                                  </Badge>
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="text-center text-green-300">
+                                  <Check className="w-8 h-8 mx-auto mb-2" />
+                                  <div className="text-lg font-semibold">{t('kds.ready')}</div>
+                                  <div className="text-sm text-green-300/80">Pronto da {getElapsedTime(order)}</div>
+                                </div>
+                              </CardContent>
+                            </div>
+                          </Card>
+                        )}
+                      </Draggable>
+                    ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
           </div>
-        </div>
+          </div>
+        </DragDropContext>
       </div>
     </div>
   );
