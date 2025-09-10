@@ -95,19 +95,34 @@ export function PosInterface() {
       return response.json();
     },
     onSuccess: () => {
-      // Print receipt before clearing order data
-      printReceipt();
+      // Capture receipt data before clearing UI state
+      const receiptData = {
+        table: selectedTable,
+        items: orderItems,
+        notes: orderNotes,
+        subtotal: calculateSubtotal(),
+        tax: calculateTax(),
+        total: calculateTotal()
+      };
       
+      // Clear UI state after capturing receipt data
       setOrderItems([]);
       setOrderNotes('');
       setSelectedTable(null);
       setShowPaymentDialog(false);
+      
       toast({
         title: "Payment processed",
         description: "Order completed and receipt printed successfully.",
       });
+      
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
+      
+      // Print receipt with captured data to avoid using cleared state
+      setTimeout(() => {
+        printReceipt(receiptData);
+      }, 100);
     },
     onError: (error) => {
       toast({
@@ -267,41 +282,51 @@ export function PosInterface() {
     paymentMutation.mutate(paymentData);
   };
 
-  const printReceipt = () => {
+  const printReceipt = (receiptData?: any) => {
+    // Use passed receipt data or fallback to current state (for backward compatibility)
+    const data = receiptData || {
+      table: selectedTable,
+      items: orderItems,
+      notes: orderNotes,
+      subtotal: calculateSubtotal(),
+      tax: calculateTax(),
+      total: calculateTotal()
+    };
+    
     // Create printable receipt content
     const receiptContent = `
       <div style="font-family: monospace; width: 300px; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
           <h2>Restaurant Receipt</h2>
-          <p>Table: ${selectedTable?.number}</p>
+          <p>Table: ${data.table?.number || 'N/A'}</p>
           <p>Date: ${new Date().toLocaleDateString()}</p>
           <p>Time: ${new Date().toLocaleTimeString()}</p>
         </div>
         <hr>
         <div style="margin: 20px 0;">
-          ${orderItems.map(item => `
+          ${data.items?.map(item => `
             <div style="display: flex; justify-content: space-between; margin: 5px 0;">
               <span>${item.menuItem.name} x${item.quantity}</span>
               <span>€${Number(item.totalPrice).toFixed(2)}</span>
             </div>
-          `).join('')}
+          `).join('') || '<p>No items</p>'}
         </div>
         <hr>
         <div style="margin: 10px 0;">
           <div style="display: flex; justify-content: space-between;">
             <span>Subtotal:</span>
-            <span>€${calculateSubtotal().toFixed(2)}</span>
+            <span>€${data.subtotal?.toFixed(2) || '0.00'}</span>
           </div>
           <div style="display: flex; justify-content: space-between;">
             <span>Tax (22%):</span>
-            <span>€${calculateTax().toFixed(2)}</span>
+            <span>€${data.tax?.toFixed(2) || '0.00'}</span>
           </div>
           <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2em;">
             <span>Total:</span>
-            <span>€${calculateTotal().toFixed(2)}</span>
+            <span>€${data.total?.toFixed(2) || '0.00'}</span>
           </div>
         </div>
-        ${orderNotes ? `<p style="margin-top: 20px;">Notes: ${orderNotes}</p>` : ''}
+        ${data.notes ? `<p style="margin-top: 20px;">Notes: ${data.notes}</p>` : ''}
         <div style="text-align: center; margin-top: 20px;">
           <p>Thank you for your visit!</p>
         </div>
