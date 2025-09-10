@@ -24,16 +24,22 @@ export function CustomerMonitor() {
     refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
   });
 
-  // Filter and separate orders
-  const allPreparingOrders = orders.filter(order => 
-    order.status === 'preparing' || 
-    (order.status === 'new' && order.orderLines.some(line => line.status === 'preparing'))
-  );
-
+  // Filter and separate orders - priority to "ready" status
   const allReadyOrders = orders.filter(order => 
     order.status === 'ready' || 
-    order.orderLines.every(line => line.status === 'ready' || line.status === 'served')
+    (order.orderLines.length > 0 && order.orderLines.every(line => line.status === 'ready' || line.status === 'served'))
   );
+
+  const allPreparingOrders = orders.filter(order => {
+    // Exclude orders already in ready category
+    const isReady = order.status === 'ready' || 
+      (order.orderLines.length > 0 && order.orderLines.every(line => line.status === 'ready' || line.status === 'served'));
+    
+    return !isReady && (
+      order.status === 'preparing' || 
+      (order.status === 'new' && order.orderLines.some(line => line.status === 'preparing'))
+    );
+  });
 
   // Limit displayed orders and create "others" sections
   const maxDisplayed = 3;
