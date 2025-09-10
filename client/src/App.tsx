@@ -11,8 +11,6 @@ import { PosInterface } from "@/components/PosInterface";
 import { KitchenDisplay } from "@/components/KitchenDisplay";
 import { CustomerMonitor } from "@/components/CustomerMonitor";
 import { AdminPanel } from "@/components/AdminPanel";
-import { WaiterInterface } from "@/components/WaiterInterface";
-import { QueueManagement } from "@/components/QueueManagement";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 
 function Router() {
@@ -43,16 +41,6 @@ function Router() {
       <Route path="/customer">
         <WebSocketProvider clientType="customer">
           <CustomerMonitor />
-        </WebSocketProvider>
-      </Route>
-      <Route path="/waiter">
-        <WebSocketProvider clientType="waiter">
-          <WaiterInterface />
-        </WebSocketProvider>
-      </Route>
-      <Route path="/queue">
-        <WebSocketProvider clientType="admin">
-          <QueueManagement />
         </WebSocketProvider>
       </Route>
       <Route path="/admin">
