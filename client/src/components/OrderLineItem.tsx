@@ -62,41 +62,40 @@ export function OrderLineItem({ orderLine, order, onStatusUpdate, isUpdating = f
         size="sm"
         onClick={() => onStatusUpdate(orderLine.id, nextStatus)}
         disabled={isUpdating}
-        className={`${buttonColor} text-white text-xs px-2 py-1 h-6`}
+        className={`${buttonColor} text-white text-xs px-1.5 py-0.5 h-5`}
         data-testid={`btn-advance-${orderLine.id}`}
       >
-        <Icon className="w-3 h-3 mr-1" />
+        <Icon className="w-2.5 h-2.5 mr-1" />
         {text}
       </Button>
     );
   };
 
   return (
-    <div className="flex items-center justify-between p-3 bg-white/10 rounded-lg">
+    <div className="flex items-center justify-between p-2 bg-white/10 rounded text-xs">
       <div className="flex-1 text-white">
         <div className="flex items-center justify-between">
-          <div className="font-medium">{orderLine.menuItem.name}</div>
-          <div className="flex items-center space-x-2">
+          <div className="font-medium text-sm">{orderLine.menuItem.name}</div>
+          <div className="flex items-center space-x-1">
             {/* Timer display */}
-            <div className={`flex items-center space-x-1 text-xs px-2 py-1 rounded ${
+            <div className={`flex items-center space-x-1 px-1.5 py-0.5 rounded ${
               currentTimer.status === 'overdue' ? 'bg-red-500/20 text-red-300' :
               currentTimer.status === 'warning' ? 'bg-yellow-500/20 text-yellow-300' :
               'bg-white/10 text-white/80'
             }`}>
-              {isWaiting ? <Timer className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-              <span>{formatTimer(currentTimer)}</span>
+              {isWaiting ? <Timer className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+              <span className="text-xs">{formatTimer(currentTimer)}</span>
               {currentTimer.expectedTime && isPreparing && (
-                <span className="text-white/60">
-                  /{currentTimer.expectedTime}min
+                <span className="text-white/60 text-xs">
+                  /{currentTimer.expectedTime}m
                 </span>
               )}
-              {currentTimer.status === 'overdue' && <AlertTriangle className="w-3 h-3 text-red-400" />}
-              {isWaiting && <span className="text-white/60 text-xs">attesa</span>}
+              {currentTimer.status === 'overdue' && <AlertTriangle className="w-2.5 h-2.5 text-red-400" />}
             </div>
             
             {/* Progress bar for preparation phase */}
             {isPreparing && currentTimer.expectedTime && (
-              <div className="w-16 h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div className="w-12 h-1 bg-white/20 rounded-full overflow-hidden">
                 <div 
                   className={`h-full transition-all duration-300 ${
                     currentTimer.status === 'overdue' ? 'bg-red-500' :
@@ -109,17 +108,18 @@ export function OrderLineItem({ orderLine, order, onStatusUpdate, isUpdating = f
             )}
             
             {/* Status indicator */}
-            <div className={`w-3 h-3 rounded-full ${getStatusColor(orderLine.status || 'new')}`}></div>
+            <div className={`w-2 h-2 rounded-full ${getStatusColor(orderLine.status || 'new')}`}></div>
           </div>
         </div>
         
-        <div className="flex items-center justify-between mt-1">
-          <div className="text-sm text-white/60">
+        <div className="flex items-center justify-between mt-0.5">
+          <div className="text-xs text-white/60">
             {orderLine.quantity && orderLine.quantity > 1 && (
-              <span>Qty: {orderLine.quantity}</span>
+              <span>Q:{orderLine.quantity}</span>
             )}
             {orderLine.quantity && orderLine.quantity > 1 && orderLine.notes && <span> • </span>}
-            {orderLine.notes && <span>Note: {orderLine.notes}</span>}
+            {orderLine.notes && <span className="truncate max-w-20">{orderLine.notes}</span>}
+            {isWaiting && <span className="text-yellow-300">attesa</span>}
           </div>
           
           {/* Action button */}

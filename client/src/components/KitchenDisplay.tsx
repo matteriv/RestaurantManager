@@ -58,9 +58,22 @@ export function KitchenDisplay() {
     });
   });
 
-  // Separate orders by status
-  const newOrders = filteredOrders.filter(order => order.status === 'new');
-  const preparingOrders = filteredOrders.filter(order => order.status === 'preparing');
+  // Group orders by line item status instead of order status
+  const getOrdersWithLineStatus = (status: string) => {
+    return filteredOrders
+      .map(order => ({
+        ...order,
+        orderLines: order.orderLines.filter(line => 
+          (selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation) &&
+          (line.status || 'new') === status
+        )
+      }))
+      .filter(order => order.orderLines.length > 0);
+  };
+
+  const newOrders = getOrdersWithLineStatus('new');
+  const preparingOrders = getOrdersWithLineStatus('preparing');
+  const readyOrders = getOrdersWithLineStatus('ready');
 
   // Update order line status mutation
   const updateOrderLineMutation = useMutation({
@@ -304,20 +317,23 @@ export function KitchenDisplay() {
                             <div className="absolute top-2 right-2 text-blue-300">
                               <Move className="w-4 h-4" />
                             </div>
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-white">
-                        {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
+                      <CardTitle className="text-white text-sm">
+                        #{String(order.orderNumber).padStart(4, '0')} - T{order.table?.number}
                       </CardTitle>
-                      <Badge className="bg-blue-500 text-white">
-                        {getElapsedTime(order)} fa
-                      </Badge>
+                      <div className="flex items-center space-x-1">
+                        <Badge className="bg-blue-500 text-white text-xs px-1">
+                          {order.orderLines.length} nuovi
+                        </Badge>
+                        <Badge className="bg-white/10 text-white/80 text-xs px-1">
+                          {getElapsedTime(order)}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {order.orderLines
-                      .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
-                      .map(line => (
+                  <CardContent className="space-y-2">
+                    {order.orderLines.map(line => (
                         <OrderLineItem 
                           key={line.id}
                           orderLine={line}
@@ -376,21 +392,24 @@ export function KitchenDisplay() {
                             <div className="absolute top-2 right-2 text-yellow-300">
                               <Move className="w-4 h-4" />
                             </div>
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-white">
-                        {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
+                      <CardTitle className="text-white text-sm">
+                        #{String(order.orderNumber).padStart(4, '0')} - T{order.table?.number}
                       </CardTitle>
-                      <Badge className="bg-yellow-500 text-white">
-                        <Timer className="w-3 h-3 mr-1" />
-                        {getElapsedTime(order)} fa
-                      </Badge>
+                      <div className="flex items-center space-x-1">
+                        <Badge className="bg-yellow-500 text-white text-xs px-1">
+                          <Timer className="w-2.5 h-2.5 mr-0.5" />
+                          {order.orderLines.length}
+                        </Badge>
+                        <Badge className="bg-white/10 text-white/80 text-xs px-1">
+                          {getElapsedTime(order)}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {order.orderLines
-                      .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
-                      .map(line => (
+                  <CardContent className="space-y-2">
+                    {order.orderLines.map(line => (
                         <OrderLineItem 
                           key={line.id}
                           orderLine={line}
@@ -434,9 +453,7 @@ export function KitchenDisplay() {
                     snapshot.isDraggingOver ? 'bg-green-500/10 border-2 border-green-400 border-dashed' : ''
                   }`}
                 >
-                  {orders
-                    .filter(order => order.status === 'ready')
-                    .map((order, index) => (
+                  {readyOrders.map((order, index) => (
                       <Draggable key={order.id} draggableId={`order-${order.id}`} index={index}>
                         {(provided, snapshot) => (
                           <Card 
@@ -451,14 +468,20 @@ export function KitchenDisplay() {
                               <div className="absolute top-2 right-2 text-green-300">
                                 <Move className="w-4 h-4" />
                               </div>
-                              <CardHeader className="pb-3">
+                              <CardHeader className="pb-2">
                                 <div className="flex items-center justify-between">
-                                  <CardTitle className="text-white">
-                                    {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
+                                  <CardTitle className="text-white text-sm">
+                                    #{String(order.orderNumber).padStart(4, '0')} - T{order.table?.number}
                                   </CardTitle>
-                                  <Badge className="bg-green-500 text-white">
-                                    {t('status.ready')}
-                                  </Badge>
+                                  <div className="flex items-center space-x-1">
+                                    <Badge className="bg-green-500 text-white text-xs px-1">
+                                      <Check className="w-2.5 h-2.5 mr-0.5" />
+                                      {order.orderLines.length}
+                                    </Badge>
+                                    <Badge className="bg-white/10 text-white/80 text-xs px-1">
+                                      {getElapsedTime(order)}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </CardHeader>
                               <CardContent className="space-y-3">
