@@ -22,7 +22,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const maxReconnectAttempts = 5;
 
   const connect = useCallback(() => {
+    console.log('connect() called - current state:', ws.current?.readyState);
     if (ws.current?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already open, skipping connection');
       return;
     }
 
@@ -53,8 +55,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
 
-      ws.current.onclose = () => {
-        console.log('WebSocket disconnected');
+      ws.current.onclose = (event) => {
+        console.log('WebSocket disconnected - Code:', event.code, 'Reason:', event.reason);
         setIsConnected(false);
         options.onDisconnect?.();
         
@@ -85,10 +87,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         }
       };
 
+
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [options]);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -113,12 +116,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, []);
 
   useEffect(() => {
+    console.log('useWebSocket useEffect called with clientType:', options.clientType);
     connect();
     
     return () => {
+      console.log('useWebSocket cleanup called for clientType:', options.clientType);
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, options.clientType]);
 
   return {
     isConnected,

@@ -460,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   wss.on('connection', (ws: WebSocketClient, req) => {
     console.log('WebSocket client connected');
-    ws.isAlive = true;
+    ws.isAlive = true; // Mark as alive immediately
     clients.add(ws);
 
     ws.on('message', (message) => {
@@ -480,8 +480,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ws.isAlive = true;
     });
 
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected');
+    ws.on('close', (code, reason) => {
+      console.log('WebSocket client disconnected - Code:', code, 'Reason:', reason?.toString());
       clients.delete(ws);
     });
 
@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // WebSocket heartbeat
+  // WebSocket heartbeat - keep connections alive
   setInterval(() => {
     clients.forEach((ws) => {
       if (!ws.isAlive) {
@@ -502,7 +502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ws.isAlive = false;
       ws.ping();
     });
-  }, 30000);
+  }, 60000); // Increased to 60 seconds for stability
 
   // Broadcast function
   function broadcastMessage(type: string, data: any, targetClientType?: string) {
