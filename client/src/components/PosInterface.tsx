@@ -98,7 +98,7 @@ export function PosInterface() {
       setOrderItems(items => 
         items.map(item => 
           item.tempId === existingItem.tempId
-            ? { ...item, quantity: (item.quantity || 1) + 1, totalPrice: ((item.quantity || 1) + 1) * Number(menuItem.price) }
+            ? { ...item, quantity: (item.quantity || 1) + 1, totalPrice: (((item.quantity || 1) + 1) * Number(menuItem.price)).toString() }
             : item
         )
       );
@@ -130,7 +130,7 @@ export function PosInterface() {
           return {
             ...item,
             quantity: newQuantity,
-            totalPrice: newQuantity * Number(item.unitPrice)
+            totalPrice: (newQuantity * Number(item.unitPrice)).toString()
           };
         }
         return item;
@@ -228,27 +228,77 @@ export function PosInterface() {
 
         {/* Menu Items Grid */}
         <div className="p-4 grid grid-cols-3 gap-4 h-full overflow-y-auto">
-          {menuItems.map((item) => (
-            <Card 
-              key={item.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => addItemToOrder(item)}
-              data-testid={`menu-item-${item.id}`}
-            >
-              <CardContent className="p-4">
-                <div className="text-left">
-                  <h3 className="font-medium text-foreground">{item.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                  <div className="flex justify-between items-center mt-2">
-                    <span className="text-lg font-semibold text-primary">€{Number(item.price).toFixed(2)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {(item.prepTimeMinutes || 0) > 0 ? `${item.prepTimeMinutes || 0} min` : 'Ready'}
-                    </span>
+          {menuItems.map((item) => {
+            const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
+            const isLowStock = item.trackInventory && (item.currentStock || 0) > 0 && (item.currentStock || 0) <= (item.minStock || 0);
+            const hasStock = item.trackInventory && (item.currentStock || 0) > (item.minStock || 0);
+            
+            return (
+              <Card 
+                key={item.id}
+                className={`
+                  transition-shadow relative
+                  ${isOutOfStock 
+                    ? 'opacity-50 cursor-not-allowed bg-gray-50' 
+                    : 'cursor-pointer hover:shadow-md'
+                  }
+                `}
+                onClick={() => !isOutOfStock && addItemToOrder(item)}
+                data-testid={`menu-item-${item.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="text-left">
+                    {/* Stock indicator badge */}
+                    {item.trackInventory && (
+                      <div className="absolute top-2 right-2">
+                        <Badge 
+                          className={`text-xs ${
+                            isOutOfStock ? 'bg-red-100 text-red-800' :
+                            isLowStock ? 'bg-orange-100 text-orange-800' :
+                            'bg-green-100 text-green-800'
+                          }`}
+                        >
+                          {isOutOfStock ? 'Esaurito' : 
+                           isLowStock ? 'Scorte basse' : 
+                           'Disponibile'}
+                        </Badge>
+                      </div>
+                    )}
+                    
+                    <h3 className={`font-medium ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
+                      {item.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                    
+                    {/* Stock info */}
+                    {item.trackInventory && (
+                      <div className="flex items-center space-x-1 mt-1 text-xs text-muted-foreground">
+                        <span>Stock: {item.currentStock || 0}</span>
+                        {(item.minStock || 0) > 0 && (
+                          <span>| Min: {item.minStock}</span>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center mt-2">
+                      <span className={`text-lg font-semibold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>
+                        €{Number(item.price).toFixed(2)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {(item.prepTimeMinutes || 0) > 0 ? `${item.prepTimeMinutes || 0} min` : 'Ready'}
+                      </span>
+                    </div>
+                    
+                    {isOutOfStock && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded">
+                        <span className="text-sm font-medium text-red-600">Non Disponibile</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
