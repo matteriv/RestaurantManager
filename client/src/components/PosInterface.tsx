@@ -294,7 +294,7 @@ export function PosInterface() {
                   size="lg"
                   onClick={() => setSelectedCategory(category.id)}
                   data-testid={`category-tab-${category.id}`}
-                  className="flex flex-col items-center space-y-1 px-4 py-3 h-16 min-w-20 text-center"
+                  className="flex flex-col items-center space-y-1 px-3 py-2 h-14 min-w-18 text-center"
                 >
                   <IconComponent className="w-6 h-6" />
                   <span className="text-xs font-medium">{category.name}</span>
@@ -310,7 +310,7 @@ export function PosInterface() {
             <div 
               {...provided.droppableProps}
               ref={provided.innerRef}
-              className="p-2 grid grid-cols-4 gap-2 h-full overflow-y-auto"
+              className="p-1 grid grid-cols-4 gap-1 h-full overflow-y-auto"
             >
           {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
@@ -325,7 +325,7 @@ export function PosInterface() {
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     className={`
-                      transition-all relative h-24 cursor-pointer
+                      transition-all relative h-20 cursor-pointer
                       ${isOutOfStock 
                         ? 'opacity-50 cursor-not-allowed bg-gray-50' 
                         : 'hover:shadow-lg hover:scale-105'
