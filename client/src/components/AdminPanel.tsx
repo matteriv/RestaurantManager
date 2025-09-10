@@ -295,6 +295,11 @@ export function AdminPanel() {
     itemForm.setValue('categoryId', item.categoryId);
     itemForm.setValue('station', item.station || '');
     itemForm.setValue('prepTimeMinutes', item.prepTimeMinutes || 0);
+    // Campi inventario
+    itemForm.setValue('inventoryEnabled', item.inventoryEnabled || false);
+    itemForm.setValue('stock', item.stock || 0);
+    itemForm.setValue('minStock', item.minStock || 0);
+    itemForm.setValue('departmentId', item.departmentId || '');
     setShowItemDialog(true);
   };
 
@@ -504,7 +509,7 @@ export function AdminPanel() {
                       Nuovo Articolo
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-lg">
                     <DialogHeader>
                       <DialogTitle>{editingItem ? 'Modifica Articolo' : 'Nuovo Articolo'}</DialogTitle>
                     </DialogHeader>
@@ -551,6 +556,41 @@ export function AdminPanel() {
                         <Label htmlFor="prepTime">Tempo Preparazione (minuti)</Label>
                         <Input type="number" id="prepTime" {...itemForm.register('prepTimeMinutes')} />
                       </div>
+                      
+                      {/* Gestione Inventario */}
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium mb-3">Gestione Inventario</h4>
+                        <div className="flex items-center space-x-2 mb-3">
+                          <input type="checkbox" id="inventoryEnabled" {...itemForm.register('inventoryEnabled')} />
+                          <Label htmlFor="inventoryEnabled">Abilita controllo inventario</Label>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="stock">Giacenza Attuale</Label>
+                            <Input type="number" id="stock" {...itemForm.register('stock')} />
+                          </div>
+                          <div>
+                            <Label htmlFor="minStock">Giacenza Minima</Label>
+                            <Input type="number" id="minStock" {...itemForm.register('minStock')} />
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3">
+                          <Label htmlFor="departmentId">Reparto</Label>
+                          <Select onValueChange={(value) => itemForm.setValue('departmentId', value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleziona reparto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {departments.map(department => (
+                                <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
                       <Button type="submit" className="w-full">{t('common.save')}</Button>
                     </form>
                   </DialogContent>
@@ -585,6 +625,23 @@ export function AdminPanel() {
                               </div>
                             </div>
                             <p className="text-sm text-gray-600 mb-2">{item.description}</p>
+                            {item.inventoryEnabled && (
+                              <div className="flex items-center space-x-2 mb-2 text-xs">
+                                <span className="text-gray-500">Stock:</span>
+                                <Badge 
+                                  className={`${
+                                    (item.stock || 0) <= 0 ? 'bg-red-100 text-red-800' :
+                                    (item.stock || 0) <= (item.minStock || 0) ? 'bg-orange-100 text-orange-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}
+                                >
+                                  {item.stock || 0} / min: {item.minStock || 0}
+                                </Badge>
+                                <span className="text-gray-400">
+                                  {departments.find(d => d.id === item.departmentId)?.name || 'N/A'}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex justify-between items-center">
                               <span className="font-semibold text-green-600">€{parseFloat(item.price).toFixed(2)}</span>
                               <div className="flex items-center space-x-2 text-xs text-gray-500">
