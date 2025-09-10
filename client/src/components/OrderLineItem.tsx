@@ -24,7 +24,7 @@ export function OrderLineItem({ orderLine, order, onStatusUpdate, isUpdating = f
     isWaiting,
     isPreparing
   } = useDualKitchenTimer(
-    order.createdAt,
+    order.createdAt || undefined,
     orderLine.startedAt || undefined,
     orderLine.completedAt || undefined,
     orderLine.menuItem.prepTimeMinutes || undefined,
