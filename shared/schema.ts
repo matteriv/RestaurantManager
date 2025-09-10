@@ -271,6 +271,11 @@ export const insertTableSchema = createInsertSchema(tables).omit({
   id: true,
 });
 
+export const insertOrderLineSchema = createInsertSchema(orderLines).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertOrderSchema = createInsertSchema(orders).omit({
   id: true,
   orderNumber: true,
@@ -278,11 +283,6 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   updatedAt: true,
 }).extend({
   orderLines: z.array(insertOrderLineSchema).optional(),
-});
-
-export const insertOrderLineSchema = createInsertSchema(orderLines).omit({
-  id: true,
-  createdAt: true,
 });
 
 export const insertPaymentSchema = createInsertSchema(payments).omit({
