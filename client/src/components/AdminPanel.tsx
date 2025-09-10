@@ -296,8 +296,8 @@ export function AdminPanel() {
     itemForm.setValue('station', item.station || '');
     itemForm.setValue('prepTimeMinutes', item.prepTimeMinutes || 0);
     // Campi inventario
-    itemForm.setValue('inventoryEnabled', item.inventoryEnabled || false);
-    itemForm.setValue('stock', item.stock || 0);
+    itemForm.setValue('trackInventory', item.trackInventory || false);
+    itemForm.setValue('currentStock', item.currentStock || 0);
     itemForm.setValue('minStock', item.minStock || 0);
     itemForm.setValue('departmentId', item.departmentId || '');
     setShowItemDialog(true);
@@ -561,14 +561,14 @@ export function AdminPanel() {
                       <div className="border-t pt-4">
                         <h4 className="font-medium mb-3">Gestione Inventario</h4>
                         <div className="flex items-center space-x-2 mb-3">
-                          <input type="checkbox" id="inventoryEnabled" {...itemForm.register('inventoryEnabled')} />
-                          <Label htmlFor="inventoryEnabled">Abilita controllo inventario</Label>
+                          <input type="checkbox" id="trackInventory" {...itemForm.register('trackInventory')} />
+                          <Label htmlFor="trackInventory">Abilita controllo inventario</Label>
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <Label htmlFor="stock">Giacenza Attuale</Label>
-                            <Input type="number" id="stock" {...itemForm.register('stock')} />
+                            <Label htmlFor="currentStock">Giacenza Attuale</Label>
+                            <Input type="number" id="currentStock" {...itemForm.register('currentStock')} />
                           </div>
                           <div>
                             <Label htmlFor="minStock">Giacenza Minima</Label>
@@ -625,17 +625,17 @@ export function AdminPanel() {
                               </div>
                             </div>
                             <p className="text-sm text-gray-600 mb-2">{item.description}</p>
-                            {item.inventoryEnabled && (
+                            {item.trackInventory && (
                               <div className="flex items-center space-x-2 mb-2 text-xs">
                                 <span className="text-gray-500">Stock:</span>
                                 <Badge 
                                   className={`${
-                                    (item.stock || 0) <= 0 ? 'bg-red-100 text-red-800' :
-                                    (item.stock || 0) <= (item.minStock || 0) ? 'bg-orange-100 text-orange-800' :
+                                    (item.currentStock || 0) <= 0 ? 'bg-red-100 text-red-800' :
+                                    (item.currentStock || 0) <= (item.minStock || 0) ? 'bg-orange-100 text-orange-800' :
                                     'bg-green-100 text-green-800'
                                   }`}
                                 >
-                                  {item.stock || 0} / min: {item.minStock || 0}
+                                  {item.currentStock || 0} / min: {item.minStock || 0}
                                 </Badge>
                                 <span className="text-gray-400">
                                   {departments.find(d => d.id === item.departmentId)?.name || 'N/A'}
