@@ -148,6 +148,11 @@ export const payments = pgTable("payments", {
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   method: varchar("method").notNull(), // cash, card, split
   processedBy: varchar("processed_by").references(() => users.id),
+  receiptId: varchar("receipt_id"),
+  qrCode: text("qr_code"),
+  receiptMethod: varchar("receipt_method"),
+  customerEmail: varchar("customer_email"),
+  customerPhone: varchar("customer_phone"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
