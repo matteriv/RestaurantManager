@@ -172,15 +172,6 @@ export function PosInterface() {
   };
 
   const sendToKitchen = () => {
-    if (!selectedTable) {
-      toast({
-        title: "No table selected",
-        description: "Please select a table before sending the order.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (orderItems.length === 0) {
       toast({
         title: "Empty order",
@@ -195,7 +186,7 @@ export function PosInterface() {
     const total = calculateTotal();
 
     createOrderMutation.mutate({
-      tableId: selectedTable.id,
+      tableId: selectedTable?.id || null, // Tavolo opzionale
       status: 'new',
       subtotal: subtotal.toString(),
       tax: tax.toString(),
@@ -466,7 +457,7 @@ export function PosInterface() {
             <Button
               className="flex-1 bg-secondary text-secondary-foreground hover:bg-secondary/90"
               onClick={sendToKitchen}
-              disabled={createOrderMutation.isPending || orderItems.length === 0 || !selectedTable}
+              disabled={createOrderMutation.isPending || orderItems.length === 0}
               data-testid="send-to-kitchen"
             >
               <Send className="w-4 h-4 mr-1" />

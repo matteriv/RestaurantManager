@@ -421,7 +421,7 @@ export function AdminPanel() {
                     {todayOrders.slice(0, 5).map(order => (
                       <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
-                          <div className="font-medium">#{order.orderNumber}</div>
+                          <div className="font-medium">#{String(order.orderNumber).padStart(4, '0')}</div>
                           <div className="text-sm text-gray-500">
                             Tavolo {order.table?.number} • {formatDistanceToNow(new Date(order.createdAt || ''), { 
                               addSuffix: true, 
@@ -816,7 +816,7 @@ export function AdminPanel() {
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-semibold">#{order.orderNumber}</div>
+                        <div className="font-semibold">#{String(order.orderNumber).padStart(4, '0')}</div>
                         <div className="text-sm text-gray-600">
                           Tavolo {order.table?.number} • {new Date(order.createdAt || '').toLocaleString('it-IT')}
                         </div>

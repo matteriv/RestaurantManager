@@ -244,7 +244,7 @@ export function TableLayout({ onTableSelect, selectedTableId, showOrderTransfer 
           {selectedOrder && (
             <div className="space-y-4">
               <div className="text-sm">
-                <p className="font-medium">Order #{selectedOrder.orderNumber}</p>
+                <p className="font-medium">Order #{String(selectedOrder.orderNumber).padStart(4, '0')}</p>
                 <p className="text-muted-foreground">
                   From: Table {selectedOrder.table?.number}
                 </p>

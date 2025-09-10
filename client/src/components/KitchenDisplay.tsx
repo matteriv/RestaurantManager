@@ -253,7 +253,7 @@ export function KitchenDisplay() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-white">
-                        {t('kds.order')} #{order.orderNumber}
+                        {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
                       </CardTitle>
                       <Badge className="bg-blue-500 text-white">
                         {getElapsedTime(order)} fa
@@ -311,7 +311,7 @@ export function KitchenDisplay() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-white">
-                        {t('kds.order')} #{order.orderNumber}
+                        {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
                       </CardTitle>
                       <Badge className="bg-yellow-500 text-white">
                         <Timer className="w-3 h-3 mr-1" />
@@ -373,7 +373,7 @@ export function KitchenDisplay() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-white">
-                          {t('kds.order')} #{order.orderNumber}
+                          {t('kds.order')} #{String(order.orderNumber).padStart(4, '0')}
                         </CardTitle>
                         <Badge className="bg-green-500 text-white">
                           {t('status.ready')}
