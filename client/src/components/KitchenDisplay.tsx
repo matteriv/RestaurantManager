@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,7 @@ import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { useTranslation } from '@/lib/i18n';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { Timer, Play, Pause, Check, ChefHat, Coffee, Pizza, IceCream, Flame, Wifi, WifiOff } from 'lucide-react';
+import { Timer, Play, Pause, Check, ChefHat, Coffee, Pizza, IceCream, Flame, Wifi, WifiOff, Move } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { OrderWithDetails, OrderLine } from '@shared/schema';
