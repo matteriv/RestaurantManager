@@ -310,7 +310,7 @@ export function PosInterface() {
             <div 
               {...provided.droppableProps}
               ref={provided.innerRef}
-              className="p-1 grid grid-cols-4 gap-1 h-full overflow-y-auto"
+              className="p-1 grid grid-cols-4 gap-0.5 h-full overflow-y-auto"
             >
           {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
@@ -325,7 +325,7 @@ export function PosInterface() {
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     className={`
-                      transition-all relative h-20 cursor-pointer
+                      transition-all relative h-16 cursor-pointer
                       ${isOutOfStock 
                         ? 'opacity-50 cursor-not-allowed bg-gray-50' 
                         : 'hover:shadow-lg hover:scale-105'
@@ -335,7 +335,7 @@ export function PosInterface() {
                     onClick={() => !isOutOfStock && addItemToOrder(item)}
                     data-testid={`menu-item-${item.id}`}
                   >
-                <CardContent className="p-2">
+                <CardContent className="p-1.5">
                   <div className="text-left">
                     {/* Stock indicator badge */}
                     {item.trackInventory && (
@@ -354,10 +354,10 @@ export function PosInterface() {
                       </div>
                     )}
                     
-                    <h3 className={`font-medium text-sm ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
+                    <h3 className={`font-medium text-xs ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
                       {item.name}
                     </h3>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
                     
                     {/* Stock info */}
                     {item.trackInventory && (
@@ -369,8 +369,8 @@ export function PosInterface() {
                       </div>
                     )}
                     
-                    <div className="flex justify-between items-center mt-2">
-                      <span className={`text-lg font-semibold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className={`text-sm font-semibold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>
                         €{Number(item.price).toFixed(2)}
                       </span>
                       <span className="text-xs text-muted-foreground">
@@ -448,7 +448,7 @@ export function PosInterface() {
               <div 
                 {...provided.droppableProps}
                 ref={provided.innerRef}
-                className={`space-y-3 min-h-32 p-2 rounded-lg border-2 border-dashed transition-colors ${
+                className={`space-y-1.5 min-h-32 p-2 rounded-lg border-2 border-dashed transition-colors ${
                   snapshot.isDraggingOver ? 'border-primary bg-primary/5' : 'border-transparent'
                 }`}
               >
@@ -465,9 +465,9 @@ export function PosInterface() {
                     <div {...provided.dragHandleProps} className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing">
                       <GripVertical className="w-4 h-4 text-muted-foreground" />
                     </div>
-                <CardContent className="p-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-medium text-sm">{item.menuItem.name}</h4>
+                <CardContent className="p-2">
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-medium text-xs">{item.menuItem.name}</h4>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -478,31 +478,31 @@ export function PosInterface() {
                       <X className="h-3 w-3" />
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => updateItemQuantity(item.tempId, -1)}
-                        className="h-6 w-6 p-0"
+                        className="h-5 w-5 p-0"
                         data-testid={`decrease-quantity-${item.tempId}`}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
-                      <span className="w-8 text-center" data-testid={`quantity-${item.tempId}`}>
+                      <span className="w-6 text-center text-xs" data-testid={`quantity-${item.tempId}`}>
                         {item.quantity}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => updateItemQuantity(item.tempId, 1)}
-                        className="h-6 w-6 p-0"
+                        className="h-5 w-5 p-0"
                         data-testid={`increase-quantity-${item.tempId}`}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
                     </div>
-                    <span className="font-semibold text-primary" data-testid={`item-total-${item.tempId}`}>
+                    <span className="font-semibold text-primary text-xs" data-testid={`item-total-${item.tempId}`}>
                       €{Number(item.totalPrice).toFixed(2)}
                     </span>
                   </div>
