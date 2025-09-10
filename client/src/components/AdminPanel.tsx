@@ -36,14 +36,16 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
-import type { OrderWithDetails, MenuItem, MenuCategory, Table } from '@shared/schema';
+import type { OrderWithDetails, MenuItem, MenuCategory, Table, Department } from '@shared/schema';
 
 export function AdminPanel() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showItemDialog, setShowItemDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [showTableDialog, setShowTableDialog] = useState(false);
+  const [showDepartmentDialog, setShowDepartmentDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const { t, language } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -52,6 +54,7 @@ export function AdminPanel() {
   const itemForm = useForm();
   const categoryForm = useForm();
   const tableForm = useForm();
+  const departmentForm = useForm();
 
   // Data fetching
   const { data: orders = [] } = useQuery<OrderWithDetails[]>({
@@ -69,6 +72,10 @@ export function AdminPanel() {
 
   const { data: tables = [] } = useQuery<Table[]>({
     queryKey: ['/api/tables'],
+  });
+
+  const { data: departments = [] } = useQuery<Department[]>({
+    queryKey: ['/api/departments'],
   });
 
   const { data: dailySales } = useQuery({
@@ -159,6 +166,54 @@ export function AdminPanel() {
     },
   });
 
+  const createDepartmentMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiRequest('POST', '/api/departments', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
+      setShowDepartmentDialog(false);
+      setEditingDepartment(null);
+      departmentForm.reset();
+      toast({
+        title: t('common.success'),
+        description: 'Reparto creato con successo',
+      });
+    },
+  });
+
+  const updateDepartmentMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest('PATCH', `/api/departments/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
+      setShowDepartmentDialog(false);
+      setEditingDepartment(null);
+      departmentForm.reset();
+      toast({
+        title: t('common.success'),
+        description: 'Reparto aggiornato con successo',
+      });
+    },
+  });
+
+  const deleteDepartmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest('DELETE', `/api/departments/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
+      toast({
+        title: t('common.success'),
+        description: 'Reparto eliminato con successo',
+      });
+    },
+  });
+
   // Stats calculations
   const todayOrders = orders.filter(order => {
     const orderDate = new Date(order.createdAt || '').toDateString();
@@ -216,6 +271,22 @@ export function AdminPanel() {
     createTableMutation.mutate(tableData);
   };
 
+  const onSubmitDepartment = (data: any) => {
+    // Validation: if setting as main, remove main from others
+    const departmentData = {
+      ...data,
+      sortOrder: parseInt(data.sortOrder) || 0,
+      isActive: true,
+      isMain: data.isMain || false,
+    };
+
+    if (editingDepartment) {
+      updateDepartmentMutation.mutate({ id: editingDepartment.id, data: departmentData });
+    } else {
+      createDepartmentMutation.mutate(departmentData);
+    }
+  };
+
   const openEditItem = (item: MenuItem) => {
     setEditingItem(item);
     itemForm.setValue('name', item.name);
@@ -225,6 +296,15 @@ export function AdminPanel() {
     itemForm.setValue('station', item.station || '');
     itemForm.setValue('prepTimeMinutes', item.prepTimeMinutes || 0);
     setShowItemDialog(true);
+  };
+
+  const openEditDepartment = (department: Department) => {
+    setEditingDepartment(department);
+    departmentForm.setValue('name', department.name);
+    departmentForm.setValue('code', department.code);
+    departmentForm.setValue('sortOrder', department.sortOrder || 0);
+    departmentForm.setValue('isMain', department.isMain || false);
+    setShowDepartmentDialog(true);
   };
 
   const exportSalesReport = () => {
@@ -257,9 +337,10 @@ export function AdminPanel() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="overview">{t('admin.overview')}</TabsTrigger>
             <TabsTrigger value="menu">{t('admin.menu')}</TabsTrigger>
+            <TabsTrigger value="departments">Reparti</TabsTrigger>
             <TabsTrigger value="tables">{t('admin.tables')}</TabsTrigger>
             <TabsTrigger value="orders">{t('admin.orders')}</TabsTrigger>
             <TabsTrigger value="inventory">{t('admin.inventory')}</TabsTrigger>
@@ -520,6 +601,91 @@ export function AdminPanel() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          </TabsContent>
+
+          {/* Departments Management Tab */}
+          <TabsContent value="departments" className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Gestione Reparti</h2>
+              <Dialog open={showDepartmentDialog} onOpenChange={setShowDepartmentDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuovo Reparto
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingDepartment ? 'Modifica Reparto' : 'Nuovo Reparto'}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={departmentForm.handleSubmit(onSubmitDepartment)} className="space-y-4">
+                    <div>
+                      <Label htmlFor="departmentName">Nome Reparto</Label>
+                      <Input id="departmentName" {...departmentForm.register('name', { required: true })} />
+                    </div>
+                    <div>
+                      <Label htmlFor="departmentCode">Codice</Label>
+                      <Input id="departmentCode" {...departmentForm.register('code', { required: true })} />
+                      <p className="text-sm text-gray-500 mt-1">Es: cucina, bar, pizza</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="departmentSortOrder">Ordine</Label>
+                      <Input type="number" id="departmentSortOrder" {...departmentForm.register('sortOrder')} />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input type="checkbox" id="isMain" {...departmentForm.register('isMain')} />
+                      <Label htmlFor="isMain">Reparto Principale</Label>
+                    </div>
+                    <Button type="submit" className="w-full">
+                      {editingDepartment ? 'Aggiorna' : 'Crea'} Reparto
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              {departments.map(department => (
+                <Card key={department.id} className={`${department.isMain ? 'border-blue-400 bg-blue-50' : ''}`}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-lg">{department.name}</h3>
+                        <p className="text-sm text-gray-600">Codice: {department.code}</p>
+                        {department.isMain && (
+                          <Badge className="bg-blue-100 text-blue-800 mt-1">Principale</Badge>
+                        )}
+                      </div>
+                      <div className="flex space-x-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEditDepartment(department)}>
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => deleteDepartmentMutation.mutate(department.id)}
+                          disabled={department.isMain || false}
+                          data-testid={`delete-department-${department.id}`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Ordine: {department.sortOrder || 0}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {departments.length === 0 && (
+                <div className="col-span-3 text-center py-8 text-gray-500">
+                  <ChefHat className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p>Nessun reparto configurato.</p>
+                  <p className="text-sm">Inizia creando il tuo primo reparto.</p>
+                </div>
+              )}
             </div>
           </TabsContent>
 
