@@ -58,10 +58,27 @@ export function KitchenDisplay() {
     });
   });
 
-  // Separate orders by status (original logic restored)
-  const newOrders = filteredOrders.filter(order => order.status === 'new');
-  const preparingOrders = filteredOrders.filter(order => order.status === 'preparing');
-  const readyOrders = filteredOrders.filter(order => order.status === 'ready');
+  // Group orders by line item status - show order in column if it has items in that status
+  const getOrdersWithItemsInStatus = (status: string) => {
+    return filteredOrders
+      .filter(order => 
+        order.orderLines.some(line => 
+          (selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation) &&
+          (line.status || 'new') === status
+        )
+      )
+      .map(order => ({
+        ...order,
+        // For display, we'll show all items but highlight the ones in this status
+        orderLines: order.orderLines.filter(line => 
+          selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation
+        )
+      }));
+  };
+
+  const newOrders = getOrdersWithItemsInStatus('new');
+  const preparingOrders = getOrdersWithItemsInStatus('preparing');
+  const readyOrders = getOrdersWithItemsInStatus('ready');
 
   // Update order line status mutation
   const updateOrderLineMutation = useMutation({
@@ -312,7 +329,7 @@ export function KitchenDisplay() {
                       </CardTitle>
                       <div className="flex items-center space-x-1">
                         <Badge className="bg-blue-500 text-white text-xs px-1">
-                          {order.orderLines.filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation).length} nuovi
+                          {order.orderLines.filter(line => (line.status || 'new') === 'new').length} nuovi
                         </Badge>
                         <Badge className="bg-white/10 text-white/80 text-xs px-1">
                           {getElapsedTime(order)}
@@ -322,7 +339,7 @@ export function KitchenDisplay() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {order.orderLines
-                      .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
+                      .filter(line => (line.status || 'new') === 'new')
                       .map(line => (
                         <OrderLineItem 
                           key={line.id}
@@ -390,7 +407,7 @@ export function KitchenDisplay() {
                       <div className="flex items-center space-x-1">
                         <Badge className="bg-yellow-500 text-white text-xs px-1">
                           <Timer className="w-2.5 h-2.5 mr-0.5" />
-                          {order.orderLines.filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation).length}
+                          {order.orderLines.filter(line => (line.status || 'new') === 'preparing').length}
                         </Badge>
                         <Badge className="bg-white/10 text-white/80 text-xs px-1">
                           {getElapsedTime(order)}
@@ -400,7 +417,7 @@ export function KitchenDisplay() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {order.orderLines
-                      .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
+                      .filter(line => (line.status || 'new') === 'preparing')
                       .map(line => (
                         <OrderLineItem 
                           key={line.id}
@@ -468,7 +485,7 @@ export function KitchenDisplay() {
                                   <div className="flex items-center space-x-1">
                                     <Badge className="bg-green-500 text-white text-xs px-1">
                                       <Check className="w-2.5 h-2.5 mr-0.5" />
-                                      {order.orderLines.filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation).length}
+                                      {order.orderLines.filter(line => (line.status || 'new') === 'ready').length}
                                     </Badge>
                                     <Badge className="bg-white/10 text-white/80 text-xs px-1">
                                       {getElapsedTime(order)}
@@ -478,7 +495,7 @@ export function KitchenDisplay() {
                               </CardHeader>
                               <CardContent className="space-y-3">
                                 {order.orderLines
-                                  .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
+                                  .filter(line => (line.status || 'new') === 'ready')
                                   .map(line => (
                                     <OrderLineItem 
                                       key={line.id}
