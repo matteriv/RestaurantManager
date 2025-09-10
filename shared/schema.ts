@@ -273,6 +273,7 @@ export const insertTableSchema = createInsertSchema(tables).omit({
 
 export const insertOrderLineSchema = createInsertSchema(orderLines).omit({
   id: true,
+  orderId: true,
   createdAt: true,
 });
 
