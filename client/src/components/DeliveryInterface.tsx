@@ -13,12 +13,19 @@ export function DeliveryInterface() {
   const { toast } = useToast();
   const [completingOrders, setCompletingOrders] = useState<Set<string>>(new Set());
 
-  // Query to fetch ready orders
-  const { data: readyOrders = [], isLoading, refetch } = useQuery<OrderWithDetails[]>({
-    queryKey: ["/api/orders", "ready"],
-    queryFn: () => fetch("/api/orders?status=ready").then((res) => res.json()),
+  // Query to fetch all orders and filter for ready ones
+  const { data: allOrders = [], isLoading, refetch } = useQuery<OrderWithDetails[]>({
+    queryKey: ["/api/orders"],
+    queryFn: () => fetch("/api/orders").then((res) => res.json()),
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
+
+  // Filter orders that have all lines ready or served
+  const readyOrders = allOrders.filter(order => 
+    order.orderLines.length > 0 && 
+    order.orderLines.every(line => line.status === 'ready' || line.status === 'served') &&
+    order.status !== 'served' // Exclude already delivered orders
+  );
 
   // Mutation to mark order as delivered/served
   const confirmDeliveryMutation = useMutation({
@@ -41,7 +48,6 @@ export function DeliveryInterface() {
       });
       
       // Refresh the orders list
-      queryClient.invalidateQueries({ queryKey: ["/api/orders", "ready"] });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     },
     onError: (_, orderId) => {
