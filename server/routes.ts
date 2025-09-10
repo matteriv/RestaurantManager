@@ -49,6 +49,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/menu/items', isAuthenticated, async (req: any, res) => {
+    try {
+      const itemData = insertMenuItemSchema.parse(req.body);
+      const item = await storage.createMenuItem(itemData);
+      res.status(201).json(item);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid item data", errors: error.errors });
+      }
+      console.error("Error creating menu item:", error);
+      res.status(500).json({ message: "Failed to create menu item" });
+    }
+  });
+
+  app.patch('/api/menu/items/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const itemData = req.body;
+      const item = await storage.updateMenuItem(id, itemData);
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating menu item:", error);
+      res.status(500).json({ message: "Failed to update menu item" });
+    }
+  });
+
+  app.delete('/api/menu/items/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteMenuItem(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting menu item:", error);
+      res.status(500).json({ message: "Failed to delete menu item" });
+    }
+  });
+
   // Department routes
   app.get('/api/departments', async (req, res) => {
     try {
