@@ -32,7 +32,11 @@ import {
   ChefHat,
   Coffee,
   Pizza,
-  IceCream
+  IceCream,
+  AlertTriangle,
+  RefreshCcw,
+  Trash,
+  Database
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -222,6 +226,30 @@ export function AdminPanel() {
     },
   });
 
+  // Reset system mutation
+  const resetSystemMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/admin/reset-system');
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate all queries to refresh data
+      queryClient.invalidateQueries();
+      toast({
+        title: 'Sistema Azzerato',
+        description: 'Tutti i dati sono stati eliminati e il sistema è stato resettato',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
+        description: 'Errore durante il reset del sistema',
+        variant: 'destructive',
+      });
+      console.error('Reset error:', error);
+    },
+  });
+
   // Stats calculations
   const todayOrders = orders.filter(order => {
     const orderDate = new Date(order.createdAt || '').toDateString();
@@ -344,6 +372,14 @@ export function AdminPanel() {
     window.URL.revokeObjectURL(url);
   };
 
+  const confirmResetSystem = () => {
+    if (window.confirm('ATTENZIONE: Questa operazione eliminerà TUTTI gli ordini, libererà tutti i tavoli e azzeererà i totalizzatori. Questa azione NON PUÒ essere annullata. Sei sicuro di voler continuare?')) {
+      if (window.confirm('Sei VERAMENTE sicuro? Tutti i dati verranno persi definitivamente.')) {
+        resetSystemMutation.mutate();
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100">
       <div className="p-6">
@@ -353,7 +389,7 @@ export function AdminPanel() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="overview">{t('admin.overview')}</TabsTrigger>
             <TabsTrigger value="menu">{t('admin.menu')}</TabsTrigger>
             <TabsTrigger value="departments">Reparti</TabsTrigger>
@@ -361,6 +397,7 @@ export function AdminPanel() {
             <TabsTrigger value="orders">{t('admin.orders')}</TabsTrigger>
             <TabsTrigger value="inventory">{t('admin.inventory')}</TabsTrigger>
             <TabsTrigger value="analytics">{t('admin.analytics')}</TabsTrigger>
+            <TabsTrigger value="operations">Operazioni</TabsTrigger>
             <TabsTrigger value="settings">{t('admin.settings')}</TabsTrigger>
           </TabsList>
 
@@ -1048,6 +1085,104 @@ export function AdminPanel() {
                   <div>
                     <Label>Codice Fiscale</Label>
                     <Input placeholder="RSSMRA80A01F205Z" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Operations Tab */}
+          <TabsContent value="operations" className="space-y-6">
+            <div className="max-w-4xl mx-auto">
+              <Card className="bg-red-50 border-red-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-red-700">
+                    <AlertTriangle className="w-6 h-6" />
+                    Operazioni Critiche
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="bg-red-100 p-4 rounded-lg border border-red-300">
+                    <h3 className="font-semibold text-red-800 mb-2">⚠️ ATTENZIONE</h3>
+                    <p className="text-red-700 text-sm">
+                      Le operazioni in questa sezione sono irreversibili e comportano la perdita completa di dati. 
+                      Utilizzare solo in caso di estrema necessità o per inizializzare un nuovo periodo operativo.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-6">
+                    <Card className="border-red-300 bg-white">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-red-700">
+                          <Database className="w-5 h-5" />
+                          Reset Completo Sistema
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="text-sm text-gray-700 space-y-2">
+                            <p><strong>Questa operazione eliminerà:</strong></p>
+                            <ul className="list-disc list-inside ml-4 space-y-1">
+                              <li>Tutti gli ordini in corso e completati</li>
+                              <li>Tutti i pagamenti registrati</li>
+                              <li>La cronologia delle vendite e analytics</li>
+                              <li>I log di audit del sistema</li>
+                            </ul>
+                            <p><strong>Resetterà:</strong></p>
+                            <ul className="list-disc list-inside ml-4 space-y-1">
+                              <li>Tutti i tavoli allo stato "libero"</li>
+                              <li>I totalizzatori delle vendite</li>
+                              <li>Le statistiche di performance</li>
+                              <li>I contatori degli ordini (ripartirà da 1)</li>
+                            </ul>
+                            <p><strong>Manterrà:</strong></p>
+                            <ul className="list-disc list-inside ml-4 space-y-1">
+                              <li>Menu e categorie</li>
+                              <li>Tavoli e configurazione</li>
+                              <li>Reparti e impostazioni</li>
+                              <li>Utenti e permessi</li>
+                            </ul>
+                          </div>
+                          
+                          <div className="pt-4 border-t">
+                            <Button 
+                              variant="destructive" 
+                              size="lg"
+                              className="w-full"
+                              onClick={confirmResetSystem}
+                              disabled={resetSystemMutation.isPending}
+                              data-testid="button-reset-system"
+                            >
+                              <Trash className="w-4 h-4 mr-2" />
+                              {resetSystemMutation.isPending ? 'Resettando...' : 'Esegui Reset Completo del Sistema'}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-orange-300 bg-orange-50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-orange-700">
+                          <RefreshCcw className="w-5 h-5" />
+                          Operazioni di Manutenzione
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Button variant="outline" className="h-20 flex-col" disabled>
+                            <RefreshCcw className="w-6 h-6 mb-2" />
+                            <span className="text-sm">Pulizia Log Vecchi</span>
+                            <span className="text-xs text-gray-500">(Prossimamente)</span>
+                          </Button>
+                          <Button variant="outline" className="h-20 flex-col" disabled>
+                            <Database className="w-6 h-6 mb-2" />
+                            <span className="text-sm">Backup Database</span>
+                            <span className="text-xs text-gray-500">(Prossimamente)</span>
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </CardContent>
               </Card>

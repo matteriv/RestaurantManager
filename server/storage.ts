@@ -92,6 +92,9 @@ export interface IStorage {
     totalItemsPrepared: number;
     stationPerformance: { station: string; avgTime: number; onTime: number; total: number }[];
   }>;
+
+  // Admin operations
+  resetSystem(): Promise<{ deletedOrders: number; deletedPayments: number; deletedAuditLogs: number; resetTables: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -192,6 +195,11 @@ export class DatabaseStorage implements IStorage {
     }
     
     return await db.select().from(menuItems).where(eq(menuItems.isAvailable, true));
+  }
+
+  async getMenuItem(id: string): Promise<MenuItem | undefined> {
+    const [item] = await db.select().from(menuItems).where(eq(menuItems.id, id));
+    return item;
   }
 
   async createMenuItem(item: InsertMenuItem): Promise<MenuItem> {
@@ -465,6 +473,21 @@ export class DatabaseStorage implements IStorage {
     return orderLine;
   }
 
+  async getOrderLine(id: string): Promise<(OrderLine & { menuItem: MenuItem }) | undefined> {
+    const [result] = await db
+      .select({ orderLine: orderLines, menuItem: menuItems })
+      .from(orderLines)
+      .innerJoin(menuItems, eq(orderLines.menuItemId, menuItems.id))
+      .where(eq(orderLines.id, id));
+
+    if (!result) return undefined;
+
+    return {
+      ...result.orderLine,
+      menuItem: result.menuItem,
+    };
+  }
+
   async deleteOrderLine(id: string): Promise<void> {
     await db.delete(orderLines).where(eq(orderLines.id, id));
   }
@@ -610,6 +633,44 @@ export class DatabaseStorage implements IStorage {
       totalItemsPrepared: totalItems,
       stationPerformance,
     };
+  }
+
+  // Admin operations
+  async resetSystem(): Promise<{ deletedOrders: number; deletedPayments: number; deletedAuditLogs: number; resetTables: number }> {
+    return await db.transaction(async (tx) => {
+      try {
+        // Get counts before deletion for logging
+        const [orderCount] = await tx.select({ count: sql<number>`count(*)` }).from(orders);
+        const [paymentCount] = await tx.select({ count: sql<number>`count(*)` }).from(payments);
+        const [auditLogCount] = await tx.select({ count: sql<number>`count(*)` }).from(auditLog);
+        const [tableCount] = await tx.select({ count: sql<number>`count(*)` }).from(tables);
+
+        // Delete all order lines first (foreign key constraint)
+        await tx.delete(orderLines);
+        
+        // Delete all payments
+        await tx.delete(payments);
+        
+        // Delete all orders
+        await tx.delete(orders);
+        
+        // Delete all audit logs
+        await tx.delete(auditLog);
+        
+        // Reset all tables to 'free' status (removed updatedAt field as it doesn't exist in table schema)
+        await tx.update(tables).set({ status: 'free' as any });
+
+        return {
+          deletedOrders: orderCount.count || 0,
+          deletedPayments: paymentCount.count || 0,
+          deletedAuditLogs: auditLogCount.count || 0,
+          resetTables: tableCount.count || 0,
+        };
+      } catch (error) {
+        console.error('Error resetting system:', error);
+        throw new Error('Failed to reset system');
+      }
+    });
   }
 }
 
