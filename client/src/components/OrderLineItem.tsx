@@ -64,6 +64,7 @@ export function OrderLineItem({ orderLine, onStatusUpdate, isUpdating = false }:
         onClick={() => onStatusUpdate(orderLine.id, nextStatus)}
         disabled={isUpdating}
         className={`${buttonColor} text-white text-xs px-2 py-1 h-6`}
+        data-testid={`btn-advance-${orderLine.id}`}
       >
         <Icon className="w-3 h-3 mr-1" />
         {text}
