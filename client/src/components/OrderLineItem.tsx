@@ -28,7 +28,7 @@ export function OrderLineItem({ orderLine, onStatusUpdate, isUpdating = false }:
   };
 
   const timer = useKitchenTimer(
-    getStartTime(), 
+    getStartTime() || undefined, 
     orderLine.menuItem.prepTimeMinutes || undefined
   );
 
