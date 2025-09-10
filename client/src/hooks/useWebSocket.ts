@@ -28,9 +28,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.hostname;
-      const port = window.location.port || (protocol === "wss:" ? "443" : "80");
-      const wsUrl = `${protocol}//${host}:${port}/ws`;
+      const host = window.location.host; // Questo include già porta se presente
+      const wsUrl = `${protocol}//${host}/ws`;
       
       console.log('Connecting to WebSocket:', wsUrl);
       ws.current = new WebSocket(wsUrl);
@@ -40,12 +39,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         setIsConnected(true);
         reconnectAttempts.current = 0;
         
-        // Register client type
+        // Register client type immediately
         if (options.clientType) {
-          ws.current?.send(JSON.stringify({
+          const registrationMessage = JSON.stringify({
             type: 'register',
             clientType: options.clientType
-          }));
+          });
+          console.log('Registering as:', options.clientType);
+          ws.current?.send(registrationMessage);
         }
         
         options.onConnect?.();
