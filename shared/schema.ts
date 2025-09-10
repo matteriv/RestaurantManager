@@ -276,6 +276,8 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   orderNumber: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  orderLines: z.array(insertOrderLineSchema).optional(),
 });
 
 export const insertOrderLineSchema = createInsertSchema(orderLines).omit({
