@@ -1,0 +1,299 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(210, 20%, 98%);
+  --foreground: hsl(210, 20%, 10%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(210, 20%, 15%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(210, 20%, 10%);
+  --primary: hsl(210, 100%, 45%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(30, 100%, 50%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --muted: hsl(210, 20%, 95%);
+  --muted-foreground: hsl(210, 10%, 40%);
+  --accent: hsl(210, 20%, 92%);
+  --accent-foreground: hsl(210, 20%, 15%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --success: hsl(120, 100%, 35%);
+  --warning: hsl(45, 100%, 55%);
+  --border: hsl(210, 20%, 90%);
+  --input: hsl(210, 20%, 95%);
+  --ring: hsl(210, 100%, 45%);
+  --chart-1: hsl(210, 100%, 45%);
+  --chart-2: hsl(120, 100%, 35%);
+  --chart-3: hsl(45, 100%, 55%);
+  --chart-4: hsl(147, 78%, 42%);
+  --chart-5: hsl(341, 75%, 51%);
+  --sidebar: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(210, 20%, 15%);
+  --sidebar-primary: hsl(210, 100%, 45%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(210, 20%, 92%);
+  --sidebar-accent-foreground: hsl(210, 20%, 15%);
+  --sidebar-border: hsl(210, 20%, 90%);
+  --sidebar-ring: hsl(210, 100%, 45%);
+  --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Roboto Mono', Menlo, Monaco, 'Courier New', monospace;
+  --radius: 8px;
+  --shadow-2xs: 0px 1px 2px 0px hsl(210, 20%, 10%, 0.05);
+  --shadow-xs: 0px 1px 2px 0px hsl(210, 20%, 10%, 0.05);
+  --shadow-sm: 0px 1px 3px 0px hsl(210, 20%, 10%, 0.1), 0px 1px 2px -1px hsl(210, 20%, 10%, 0.1);
+  --shadow: 0px 1px 3px 0px hsl(210, 20%, 10%, 0.1), 0px 1px 2px -1px hsl(210, 20%, 10%, 0.1);
+  --shadow-md: 0px 4px 6px -1px hsl(210, 20%, 10%, 0.1), 0px 2px 4px -2px hsl(210, 20%, 10%, 0.1);
+  --shadow-lg: 0px 10px 15px -3px hsl(210, 20%, 10%, 0.1), 0px 4px 6px -4px hsl(210, 20%, 10%, 0.1);
+  --shadow-xl: 0px 20px 25px -5px hsl(210, 20%, 10%, 0.1), 0px 8px 10px -6px hsl(210, 20%, 10%, 0.1);
+  --shadow-2xl: 0px 25px 50px -12px hsl(210, 20%, 10%, 0.25);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: hsl(210, 20%, 2%);
+  --foreground: hsl(210, 20%, 91%);
+  --card: hsl(210, 20%, 8%);
+  --card-foreground: hsl(210, 20%, 85%);
+  --popover: hsl(210, 20%, 2%);
+  --popover-foreground: hsl(210, 20%, 91%);
+  --primary: hsl(210, 100%, 55%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(30, 100%, 60%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --muted: hsl(210, 20%, 15%);
+  --muted-foreground: hsl(210, 10%, 60%);
+  --accent: hsl(210, 20%, 15%);
+  --accent-foreground: hsl(210, 20%, 85%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --success: hsl(120, 100%, 45%);
+  --warning: hsl(45, 100%, 65%);
+  --border: hsl(210, 20%, 15%);
+  --input: hsl(210, 20%, 12%);
+  --ring: hsl(210, 100%, 55%);
+  --chart-1: hsl(210, 100%, 55%);
+  --chart-2: hsl(120, 100%, 45%);
+  --chart-3: hsl(45, 100%, 65%);
+  --chart-4: hsl(147, 78%, 52%);
+  --chart-5: hsl(341, 75%, 61%);
+  --sidebar: hsl(210, 20%, 8%);
+  --sidebar-foreground: hsl(210, 20%, 85%);
+  --sidebar-primary: hsl(210, 100%, 55%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(210, 20%, 15%);
+  --sidebar-accent-foreground: hsl(210, 20%, 85%);
+  --sidebar-border: hsl(210, 20%, 15%);
+  --sidebar-ring: hsl(210, 100%, 55%);
+  --font-sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Roboto Mono', Menlo, Monaco, 'Courier New', monospace;
+  --radius: 8px;
+  --shadow-2xs: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.1);
+  --shadow-xs: 0px 1px 2px 0px hsl(0, 0%, 0%, 0.1);
+  --shadow-sm: 0px 1px 3px 0px hsl(0, 0%, 0%, 0.2), 0px 1px 2px -1px hsl(0, 0%, 0%, 0.2);
+  --shadow: 0px 1px 3px 0px hsl(0, 0%, 0%, 0.2), 0px 1px 2px -1px hsl(0, 0%, 0%, 0.2);
+  --shadow-md: 0px 4px 6px -1px hsl(0, 0%, 0%, 0.2), 0px 2px 4px -2px hsl(0, 0%, 0%, 0.2);
+  --shadow-lg: 0px 10px 15px -3px hsl(0, 0%, 0%, 0.2), 0px 4px 6px -4px hsl(0, 0%, 0%, 0.2);
+  --shadow-xl: 0px 20px 25px -5px hsl(0, 0%, 0%, 0.3), 0px 8px 10px -6px hsl(0, 0%, 0%, 0.3);
+  --shadow-2xl: 0px 25px 50px -12px hsl(0, 0%, 0%, 0.4);
+}
+
+/* Custom animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 1s ease-in-out infinite;
+}
+
+/* Responsive text sizes for different displays */
+.text-kds { 
+  font-size: clamp(1.125rem, 2vw, 1.5rem); 
+}
+
+.text-kds-large { 
+  font-size: clamp(1.5rem, 3vw, 2rem); 
+}
+
+/* Touch-friendly buttons */
+.touch-btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Status colors for restaurant operations */
+.status-new { 
+  @apply bg-blue-100 text-blue-800 border-blue-200; 
+}
+
+.status-preparing { 
+  @apply bg-yellow-100 text-yellow-800 border-yellow-200; 
+}
+
+.status-ready { 
+  @apply bg-green-100 text-green-800 border-green-200; 
+}
+
+.status-served { 
+  @apply bg-gray-100 text-gray-800 border-gray-200; 
+}
+
+.status-paid { 
+  @apply bg-purple-100 text-purple-800 border-purple-200; 
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* Ensure smooth scrolling for better UX */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom focus styles for accessibility */
+  .focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2;
+  }
+
+  /* Print styles for receipts and reports */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    .print-only {
+      display: block !important;
+    }
+  }
+}
+
+@layer components {
+  /* Custom component styles */
+  .order-card {
+    @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-shadow;
+  }
+
+  .menu-item-card {
+    @apply bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer;
+  }
+
+  .table-status-card {
+    @apply bg-card border-2 rounded-lg p-3 text-center transition-all duration-200;
+  }
+
+  .nav-btn {
+    @apply px-4 py-2 rounded-md text-sm font-medium transition-colors;
+  }
+
+  /* Kitchen display specific styles */
+  .kds-order-card {
+    @apply bg-card border-2 rounded-xl p-4 shadow-lg;
+  }
+
+  .kds-line-item {
+    @apply border border-border rounded-lg p-3;
+  }
+
+  /* Customer monitor styles */
+  .customer-order-card {
+    @apply rounded-2xl p-8 shadow-2xl transform hover:scale-105 transition-transform;
+  }
+
+  /* Admin panel styles */
+  .admin-stat-card {
+    @apply bg-card border border-border rounded-lg p-6;
+  }
+}
+
+@layer utilities {
+  /* Custom utility classes */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { 
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Glassmorphism effect for customer monitor */
+  .glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Grid utilities for responsive layouts */
+  .grid-auto-fit {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .grid-auto-fill {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+/* Material Icons font face - fallback if CDN fails */
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Material Icons'), local('MaterialIcons-Regular'),
+       url('https://fonts.gstatic.com/s/materialicons/v142/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2') format('woff2');
+}
+
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
