@@ -284,7 +284,7 @@ export function PosInterface() {
         
         {/* Category Tabs */}
         <div className="border-b border-border bg-muted/30">
-          <div className="flex space-x-1 p-2 overflow-x-auto">
+          <div className="flex gap-1 p-2 overflow-x-auto">
             {categories.map((category) => {
               const IconComponent = getCategoryIcon(category.name);
               return (
@@ -310,7 +310,7 @@ export function PosInterface() {
             <div 
               {...provided.droppableProps}
               ref={provided.innerRef}
-              className="p-3 grid grid-cols-3 gap-3 h-full overflow-y-auto"
+              className="p-2 grid grid-cols-4 gap-2 h-full overflow-y-auto"
             >
           {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
@@ -325,7 +325,7 @@ export function PosInterface() {
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     className={`
-                      transition-all relative h-28 cursor-pointer
+                      transition-all relative h-24 cursor-pointer
                       ${isOutOfStock 
                         ? 'opacity-50 cursor-not-allowed bg-gray-50' 
                         : 'hover:shadow-lg hover:scale-105'
@@ -335,7 +335,7 @@ export function PosInterface() {
                     onClick={() => !isOutOfStock && addItemToOrder(item)}
                     data-testid={`menu-item-${item.id}`}
                   >
-                <CardContent className="p-4">
+                <CardContent className="p-2">
                   <div className="text-left">
                     {/* Stock indicator badge */}
                     {item.trackInventory && (
@@ -354,10 +354,10 @@ export function PosInterface() {
                       </div>
                     )}
                     
-                    <h3 className={`font-medium ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
+                    <h3 className={`font-medium text-sm ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
                       {item.name}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
                     
                     {/* Stock info */}
                     {item.trackInventory && (
