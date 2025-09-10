@@ -59,10 +59,11 @@ Preferred communication style: Simple, everyday language.
 - **Persistent storage** using localStorage for user preferences
 
 ### Multi-Interface Design
-- **POS Terminal**: Tablet-optimized interface for order taking and table management
+- **POS Terminal**: Tablet-optimized interface for order taking (table management removed for streamlined product focus)
 - **Kitchen Display**: Large screen interface for order preparation tracking
 - **Customer Monitor**: Public display showing order status with notifications
 - **Admin Panel**: Dashboard for analytics, reporting, and system management
+- **Delivery Interface**: Mobile-optimized smartphone interface for order delivery confirmation
 
 ### Performance Optimizations
 - **Code splitting** at the route level for smaller bundle sizes
