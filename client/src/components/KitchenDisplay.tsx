@@ -318,22 +318,12 @@ export function KitchenDisplay() {
                     {order.orderLines
                       .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
                       .map(line => (
-                        <div 
+                        <OrderLineItem 
                           key={line.id}
-                          className="flex items-center justify-between p-3 bg-white/10 rounded-lg"
-                          data-testid={`order-line-${line.id}`}
-                        >
-                          <div className="text-white">
-                            <div className="font-medium">{line.menuItem.name}</div>
-                            {line.quantity && line.quantity > 1 && (
-                              <div className="text-sm text-white/60">Qty: {line.quantity}</div>
-                            )}
-                            {line.notes && (
-                              <div className="text-sm text-white/60">Note: {line.notes}</div>
-                            )}
-                          </div>
-                          <div className={`w-3 h-3 rounded-full ${getLineStatusColor(line.status || 'new')}`}></div>
-                        </div>
+                          orderLine={line}
+                          onStatusUpdate={updateLineStatus}
+                          isUpdating={updateOrderLineMutation.isPending}
+                        />
                       ))}
                     
                     {canStartOrder(order) && (
@@ -400,23 +390,12 @@ export function KitchenDisplay() {
                     {order.orderLines
                       .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
                       .map(line => (
-                        <div 
+                        <OrderLineItem 
                           key={line.id}
-                          className="flex items-center justify-between p-3 bg-white/10 rounded-lg cursor-pointer hover:bg-white/15"
-                          onClick={() => updateLineStatus(line.id, line.status === 'ready' ? 'preparing' : 'ready')}
-                          data-testid={`preparing-line-${line.id}`}
-                        >
-                          <div className="text-white">
-                            <div className="font-medium">{line.menuItem.name}</div>
-                            {line.quantity && line.quantity > 1 && (
-                              <div className="text-sm text-white/60">Qty: {line.quantity}</div>
-                            )}
-                            {line.notes && (
-                              <div className="text-sm text-white/60">Note: {line.notes}</div>
-                            )}
-                          </div>
-                          <div className={`w-3 h-3 rounded-full ${getLineStatusColor(line.status || 'preparing')}`}></div>
-                        </div>
+                          orderLine={line}
+                          onStatusUpdate={updateLineStatus}
+                          isUpdating={updateOrderLineMutation.isPending}
+                        />
                       ))}
                     
                             {canCompleteOrder(order) && (
@@ -480,8 +459,19 @@ export function KitchenDisplay() {
                                   </Badge>
                                 </div>
                               </CardHeader>
-                              <CardContent>
-                                <div className="text-center text-green-300">
+                              <CardContent className="space-y-3">
+                                {order.orderLines
+                                  .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
+                                  .map(line => (
+                                    <OrderLineItem 
+                                      key={line.id}
+                                      orderLine={line}
+                                      onStatusUpdate={updateLineStatus}
+                                      isUpdating={updateOrderLineMutation.isPending}
+                                    />
+                                  ))}
+                                
+                                <div className="text-center text-green-300 mt-4">
                                   <Check className="w-8 h-8 mx-auto mb-2" />
                                   <div className="text-lg font-semibold">{t('kds.ready')}</div>
                                   <div className="text-sm text-green-300/80">Pronto da {getElapsedTime(order)}</div>
