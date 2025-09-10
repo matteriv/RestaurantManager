@@ -1,5 +1,7 @@
 import {
   users,
+  departments,
+  settings,
   menuCategories,
   menuItems,
   tables,
@@ -9,6 +11,10 @@ import {
   auditLog,
   type User,
   type UpsertUser,
+  type Department,
+  type InsertDepartment,
+  type Setting,
+  type InsertSetting,
   type MenuCategory,
   type InsertMenuCategory,
   type MenuItem,
@@ -33,6 +39,17 @@ export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+
+  // Department operations
+  getDepartments(): Promise<Department[]>;
+  createDepartment(department: InsertDepartment): Promise<Department>;
+  updateDepartment(id: string, department: Partial<InsertDepartment>): Promise<Department>;
+  deleteDepartment(id: string): Promise<void>;
+
+  // Settings operations
+  getSettings(): Promise<Setting[]>;
+  getSetting(key: string): Promise<Setting | undefined>;
+  upsertSetting(setting: InsertSetting): Promise<Setting>;
 
   // Menu operations
   getMenuCategories(): Promise<MenuCategory[]>;
@@ -92,6 +109,65 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  // Department operations
+  async getDepartments(): Promise<Department[]> {
+    return await db
+      .select()
+      .from(departments)
+      .where(eq(departments.isActive, true))
+      .orderBy(departments.sortOrder);
+  }
+
+  async createDepartment(department: InsertDepartment): Promise<Department> {
+    const [newDepartment] = await db.insert(departments).values(department).returning();
+    return newDepartment;
+  }
+
+  async updateDepartment(id: string, department: Partial<InsertDepartment>): Promise<Department> {
+    const [updatedDepartment] = await db
+      .update(departments)
+      .set(department)
+      .where(eq(departments.id, id))
+      .returning();
+    return updatedDepartment;
+  }
+
+  async deleteDepartment(id: string): Promise<void> {
+    await db
+      .update(departments)
+      .set({ isActive: false })
+      .where(eq(departments.id, id));
+  }
+
+  // Settings operations
+  async getSettings(): Promise<Setting[]> {
+    return await db.select().from(settings);
+  }
+
+  async getSetting(key: string): Promise<Setting | undefined> {
+    const [setting] = await db.select().from(settings).where(eq(settings.key, key));
+    return setting;
+  }
+
+  async upsertSetting(setting: InsertSetting): Promise<Setting> {
+    const [upsertedSetting] = await db
+      .insert(settings)
+      .values({
+        ...setting,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: {
+          value: setting.value,
+          description: setting.description,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return upsertedSetting;
   }
 
   // Menu operations
