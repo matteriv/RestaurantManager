@@ -54,6 +54,7 @@ export interface IStorage {
   // Menu operations
   getMenuCategories(): Promise<MenuCategory[]>;
   getMenuItems(categoryId?: string): Promise<MenuItem[]>;
+  getMenuItem(id: string): Promise<MenuItem | undefined>;
   createMenuItem(item: InsertMenuItem): Promise<MenuItem>;
   updateMenuItem(id: string, item: Partial<InsertMenuItem>): Promise<MenuItem>;
   deleteMenuItem(id: string): Promise<void>;
@@ -73,7 +74,8 @@ export interface IStorage {
 
   // Order line operations
   getOrderLines(orderId: string): Promise<(OrderLine & { menuItem: MenuItem })[]>;
-  createOrderLine(orderLine: InsertOrderLine): Promise<OrderLine>;
+  getOrderLine(id: string): Promise<(OrderLine & { menuItem: MenuItem }) | undefined>;
+  createOrderLine(orderLine: InsertOrderLine & { orderId: string }): Promise<OrderLine>;
   updateOrderLineStatus(id: string, status: string): Promise<OrderLine>;
   deleteOrderLine(id: string): Promise<void>;
 
@@ -451,7 +453,7 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  async createOrderLine(orderLine: InsertOrderLine): Promise<OrderLine> {
+  async createOrderLine(orderLine: InsertOrderLine & { orderId: string }): Promise<OrderLine> {
     const [newOrderLine] = await db.insert(orderLines).values(orderLine).returning();
     return newOrderLine;
   }

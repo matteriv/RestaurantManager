@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema } from "@shared/schema";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 
 interface WebSocketClient extends WebSocket {
@@ -347,7 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Order line routes
   app.post('/api/order-lines', isAuthenticated, async (req: any, res) => {
     try {
-      const orderLineData = insertOrderLineSchema.parse(req.body);
+      const orderLineData = insertOrderLineSchema.extend({ orderId: z.string() }).parse(req.body);
       const orderLine = await storage.createOrderLine(orderLineData);
       
       // Broadcast new order line to kitchen displays
@@ -497,6 +497,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching kitchen performance:", error);
       res.status(500).json({ message: "Failed to fetch kitchen performance" });
+    }
+  });
+
+  // Define payment processing schema
+  const paymentProcessSchema = z.object({
+    tableId: z.string().optional(),
+    orderItems: z.array(z.object({
+      menuItemId: z.string(),
+      quantity: z.number().positive(),
+      unitPrice: z.string(),
+      totalPrice: z.string(),
+      notes: z.string().optional(),
+    })),
+    total: z.string(),
+    notes: z.string().optional(),
+    receiptMethod: z.enum(['print', 'email', 'whatsapp']),
+    customerEmail: z.string().email().optional(),
+    customerPhone: z.string().optional(),
+  });
+
+  // Payment processing endpoint
+  app.post('/api/payments/process', isAuthenticated, async (req: any, res) => {
+    try {
+      const validatedData = paymentProcessSchema.parse(req.body);
+      const { tableId, orderItems, total, notes, receiptMethod, customerEmail, customerPhone } = validatedData;
+      const userId = req.user.claims.sub;
+      
+      // Create order first
+      const orderNumber = await storage.getNextOrderNumber();
+      const order = await storage.createOrder({
+        tableId: tableId || null,
+        subtotal: total,
+        tax: '0',
+        total,
+        status: 'new',
+        notes: notes || null,
+        waiterId: userId,
+      });
+
+      // Create order lines
+      for (const item of orderItems) {
+        await storage.createOrderLine({
+          orderId: order.id,
+          menuItemId: item.menuItemId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          notes: item.notes || '',
+          status: 'new',
+        });
+      }
+
+      // Update table status to occupied if not already
+      if (tableId) {
+        await storage.updateTableStatus(tableId, 'occupied');
+      }
+
+      // Generate unique receipt ID and QR code
+      const { generateUniqueId, generateQRCode, generateReceiptQRData } = await import('./qrcode');
+      const receiptId = generateUniqueId();
+      const qrData = generateReceiptQRData(order.id, receiptId);
+      const qrCodeDataUrl = await generateQRCode(qrData);
+
+      // Create payment record
+      await storage.createPayment({
+        orderId: order.id,
+        amount: total,
+        method: 'cash',
+        processedBy: userId,
+        receiptId,
+        qrCode: qrCodeDataUrl,
+        receiptMethod,
+        customerEmail: receiptMethod === 'email' ? customerEmail || null : null,
+        customerPhone: receiptMethod === 'whatsapp' ? customerPhone || null : null,
+      });
+
+      // Send receipt based on method
+      if (receiptMethod === 'email' && customerEmail) {
+        try {
+          const { sendEmail } = await import('./sendgrid');
+          const emailSent = await sendEmail({
+            to: customerEmail,
+            from: 'noreply@restaurant.com',
+            subject: `Receipt - Order #${orderNumber}`,
+            html: `
+              <h2>Receipt - Order #${orderNumber}</h2>
+              <p>Total: €${parseFloat(total).toFixed(2)}</p>
+              <p>Thank you for your visit!</p>
+              <img src="${qrCodeDataUrl}" alt="Receipt QR Code" />
+            `,
+          });
+          
+          if (!emailSent) {
+            console.error('Failed to send email receipt');
+          }
+        } catch (emailError) {
+          console.error('Email service not available:', emailError);
+          // Don't fail the entire payment if email fails
+        }
+      }
+
+      // Note: WhatsApp integration would require Twilio or similar service
+      if (receiptMethod === 'whatsapp' && customerPhone) {
+        console.log(`WhatsApp receipt requested for ${customerPhone} - Order #${orderNumber}`);
+        // TODO: Implement WhatsApp sending via Twilio API
+      }
+
+      // Broadcast order update
+      broadcastMessage('new-order', { order: { ...order, orderLines: [] } });
+      
+      res.json({ 
+        message: 'Payment processed successfully',
+        orderId: order.id,
+        orderNumber,
+        receiptId,
+        qrCode: qrCodeDataUrl
+      });
+    } catch (error) {
+      console.error("Error processing payment:", error);
+      res.status(500).json({ message: "Failed to process payment" });
     }
   });
 

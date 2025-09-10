@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart } from 'lucide-react';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart, Mail, MessageCircle, Printer } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import type { MenuItem, MenuCategory, Table, OrderLine, InsertOrderLine } from '@shared/schema';
 
@@ -25,6 +25,10 @@ export function PosInterface() {
   const [orderNotes, setOrderNotes] = useState('');
   const [showTableDialog, setShowTableDialog] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [receiptMethod, setReceiptMethod] = useState<'print' | 'email' | 'whatsapp'>('print');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -81,6 +85,35 @@ export function PosInterface() {
       toast({
         title: "Error",
         description: "Failed to send order to kitchen.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Payment mutation
+  const paymentMutation = useMutation({
+    mutationFn: async (paymentData: any) => {
+      const response = await apiRequest('POST', '/api/payments/process', paymentData);
+      return response.json();
+    },
+    onSuccess: () => {
+      setOrderItems([]);
+      setOrderNotes('');
+      setSelectedTable(null);
+      setShowPaymentDialog(false);
+      setCustomerEmail('');
+      setCustomerPhone('');
+      toast({
+        title: "Payment processed",
+        description: "Order completed and receipt sent successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to process payment.",
         variant: "destructive",
       });
     },
@@ -206,6 +239,53 @@ export function PosInterface() {
 
   const calculateTotal = () => {
     return calculateSubtotal() + calculateTax();
+  };
+
+  const processPayment = () => {
+    if (!selectedTable) {
+      toast({
+        title: "Select a table",
+        description: "Please select a table before processing payment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (receiptMethod === 'email' && !customerEmail) {
+      toast({
+        title: "Email required",
+        description: "Please enter customer email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (receiptMethod === 'whatsapp' && !customerPhone) {
+      toast({
+        title: "Phone required",
+        description: "Please enter customer phone number for WhatsApp.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const paymentData = {
+      tableId: selectedTable.id,
+      orderItems: orderItems.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        notes: item.notes,
+      })),
+      total: calculateTotal().toString(),
+      notes: orderNotes,
+      receiptMethod,
+      customerEmail: receiptMethod === 'email' ? customerEmail : undefined,
+      customerPhone: receiptMethod === 'whatsapp' ? customerPhone : undefined,
+    };
+
+    paymentMutation.mutate(paymentData);
   };
 
   const sendToKitchen = () => {
@@ -552,14 +632,106 @@ export function PosInterface() {
               <Send className="w-4 h-4 mr-1" />
               Send to Kitchen
             </Button>
-            <Button
-              className="flex-1 bg-success text-white hover:bg-success/90"
-              disabled={orderItems.length === 0}
-              data-testid="payment"
-            >
-              <CreditCard className="w-4 h-4 mr-1" />
-              Payment
-            </Button>
+            <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  className="flex-1 bg-success text-white hover:bg-success/90"
+                  disabled={orderItems.length === 0}
+                  data-testid="payment"
+                >
+                  <CreditCard className="w-4 h-4 mr-1" />
+                  Payment
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Process Payment</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium">Total Amount:</span>
+                      <span className="text-xl font-bold text-primary">€{calculateTotal().toFixed(2)}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Table: {selectedTable?.number} | Items: {orderItems.length}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="font-medium">Receipt Delivery Method</h4>
+                    
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button
+                        variant={receiptMethod === 'print' ? 'default' : 'outline'}
+                        onClick={() => setReceiptMethod('print')}
+                        className="h-16 flex-col"
+                        data-testid="receipt-print"
+                      >
+                        <Printer className="w-5 h-5 mb-1" />
+                        <span className="text-xs">Print</span>
+                      </Button>
+                      <Button
+                        variant={receiptMethod === 'email' ? 'default' : 'outline'}
+                        onClick={() => setReceiptMethod('email')}
+                        className="h-16 flex-col"
+                        data-testid="receipt-email"
+                      >
+                        <Mail className="w-5 h-5 mb-1" />
+                        <span className="text-xs">Email</span>
+                      </Button>
+                      <Button
+                        variant={receiptMethod === 'whatsapp' ? 'default' : 'outline'}
+                        onClick={() => setReceiptMethod('whatsapp')}
+                        className="h-16 flex-col"
+                        data-testid="receipt-whatsapp"
+                      >
+                        <MessageCircle className="w-5 h-5 mb-1" />
+                        <span className="text-xs">WhatsApp</span>
+                      </Button>
+                    </div>
+
+                    {receiptMethod === 'email' && (
+                      <Input
+                        type="email"
+                        placeholder="Customer email address"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        data-testid="customer-email"
+                      />
+                    )}
+
+                    {receiptMethod === 'whatsapp' && (
+                      <Input
+                        type="tel"
+                        placeholder="Customer phone number"
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        data-testid="customer-phone"
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex space-x-2 pt-4">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => setShowPaymentDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      className="flex-1 bg-success text-white hover:bg-success/90"
+                      onClick={processPayment}
+                      disabled={paymentMutation.isPending}
+                      data-testid="confirm-payment"
+                    >
+                      {paymentMutation.isPending ? 'Processing...' : 'Confirm Payment'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
           
           <div className="flex space-x-2">
