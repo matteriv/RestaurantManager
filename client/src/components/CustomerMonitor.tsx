@@ -129,19 +129,19 @@ export function CustomerMonitor() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-800 to-indigo-900">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-purple-50">
       {/* Header */}
-      <div className="bg-white/20 backdrop-blur-sm border-b border-white/30 p-4">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-blue-200/50 p-4 shadow-sm">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-white mb-1">{t('customer.title')}</h1>
-          <p className="text-white/90 text-lg">{t('customer.subtitle')}</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">{t('customer.title')}</h1>
+          <p className="text-gray-700 text-lg">{t('customer.subtitle')}</p>
           <div className="flex items-center justify-center mt-2 space-x-3">
             {isConnected ? (
-              <Wifi className="w-4 h-4 text-green-300" />
+              <Wifi className="w-4 h-4 text-green-600" />
             ) : (
-              <WifiOff className="w-4 h-4 text-red-300" />
+              <WifiOff className="w-4 h-4 text-red-500" />
             )}
-            <span className="text-white/80 text-sm">
+            <span className="text-gray-600 text-sm">
               {isConnected ? t('customer.live_updates') : t('customer.connecting')}
             </span>
           </div>
@@ -151,20 +151,20 @@ export function CustomerMonitor() {
       {/* Main Content */}
       <div className="flex-1 p-4">
         {allPreparingOrders.length === 0 && allReadyOrders.length === 0 ? (
-          <div className="text-center text-white mt-16">
-            <ChefHat className="w-16 h-16 mx-auto mb-4 text-white/50" />
+          <div className="text-center text-gray-700 mt-16">
+            <ChefHat className="w-16 h-16 mx-auto mb-4 text-gray-400" />
             <h2 className="text-2xl font-bold mb-2">{t('customer.no_orders')}</h2>
-            <p className="text-white/80 text-lg">{t('customer.no_orders_desc')}</p>
+            <p className="text-gray-600 text-lg">{t('customer.no_orders_desc')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-6">
             {/* Preparing Orders Section */}
             <div>
               <div className="text-center mb-4">
-                <div className="bg-orange-500/30 backdrop-blur-sm rounded-xl p-3 border border-orange-300/50">
-                  <ChefHat className="w-8 h-8 mx-auto mb-2 text-orange-300" />
-                  <h2 className="text-xl font-bold text-white mb-1">{t('customer.cooking')}</h2>
-                  <p className="text-orange-200 text-sm font-semibold">{allPreparingOrders.length} {t('kds.order').toLowerCase()}</p>
+                <div className="bg-orange-100/90 backdrop-blur-sm rounded-xl p-3 border border-orange-200 shadow-sm">
+                  <ChefHat className="w-8 h-8 mx-auto mb-2 text-orange-600" />
+                  <h2 className="text-xl font-bold text-orange-800 mb-1">{t('customer.cooking')}</h2>
+                  <p className="text-orange-700 text-sm font-semibold">{allPreparingOrders.length} {t('kds.order').toLowerCase()}</p>
                 </div>
               </div>
 
@@ -177,33 +177,33 @@ export function CustomerMonitor() {
                   return (
                     <Card 
                       key={order.id}
-                      className="bg-white/15 backdrop-blur-sm border-orange-300/50 hover:bg-white/20 transition-colors shadow-lg"
+                      className="bg-white/90 backdrop-blur-sm border-orange-200 hover:bg-white transition-colors shadow-md"
                       data-testid={`preparing-order-${order.id}`}
                     >
                       <CardContent className="p-3">
                         <div className="text-center mb-3">
-                          <div className="text-4xl font-bold text-orange-200 mb-1" data-testid={`order-number-${order.id}`}>
+                          <div className="text-4xl font-bold text-orange-600 mb-1" data-testid={`order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-white/90 text-xs font-medium">{t('customer.order_number')}</div>
+                          <div className="text-gray-600 text-xs font-medium">{t('customer.order_number')}</div>
                         </div>
                         
                         <div className="space-y-2">
-                          <div className="flex justify-between items-center text-white/90">
+                          <div className="flex justify-between items-center text-gray-700">
                             <span className="flex items-center gap-1 text-xs">
                               <Clock className="w-3 h-3" />
                               {t('customer.progress')}
                             </span>
-                            <span className="font-bold text-orange-200">{progress}%</span>
+                            <span className="font-bold text-orange-600">{progress}%</span>
                           </div>
                           
                           <Progress 
                             value={progress} 
-                            className="h-2 bg-white/30"
+                            className="h-2 bg-orange-100"
                             data-testid={`progress-${order.id}`}
                           />
                           
-                          <div className="flex justify-between text-xs text-white/80">
+                          <div className="flex justify-between text-xs text-gray-600">
                             <span className="font-medium">{estimatedTime}</span>
                             <span>{elapsedTime} fa</span>
                           </div>
@@ -218,22 +218,22 @@ export function CustomerMonitor() {
               {otherPreparingOrders.length > 0 && (
                 <div className="mt-4">
                   <div className="text-center mb-2">
-                    <div className="bg-orange-500/20 backdrop-blur-sm rounded-lg p-2 border border-orange-300/30">
-                      <h3 className="text-sm font-bold text-orange-200">ALTRI ({otherPreparingOrders.length})</h3>
+                    <div className="bg-orange-50/80 backdrop-blur-sm rounded-lg p-2 border border-orange-200">
+                      <h3 className="text-sm font-bold text-orange-700">ALTRI ({otherPreparingOrders.length})</h3>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {otherPreparingOrders.map((order) => (
                       <Card 
                         key={order.id}
-                        className="bg-white/10 backdrop-blur-sm border-orange-300/30 hover:bg-white/15 transition-colors"
+                        className="bg-white/80 backdrop-blur-sm border-orange-200 hover:bg-white transition-colors shadow-sm"
                         data-testid={`other-preparing-order-${order.id}`}
                       >
                         <CardContent className="p-2 text-center">
-                          <div className="text-2xl font-bold text-orange-200 mb-1" data-testid={`other-order-number-${order.id}`}>
+                          <div className="text-2xl font-bold text-orange-600 mb-1" data-testid={`other-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-xs text-white/80">{getElapsedTime(order)} fa</div>
+                          <div className="text-xs text-gray-600">{getElapsedTime(order)} fa</div>
                         </CardContent>
                       </Card>
                     ))}
@@ -245,10 +245,10 @@ export function CustomerMonitor() {
             {/* Ready Orders Section */}
             <div>
               <div className="text-center mb-4">
-                <div className="bg-green-500/30 backdrop-blur-sm rounded-xl p-3 border border-green-300/50">
-                  <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-300" />
-                  <h2 className="text-xl font-bold text-white mb-1">{t('customer.order_ready')}</h2>
-                  <p className="text-green-200 text-sm font-semibold">{allReadyOrders.length} {t('kds.order').toLowerCase()}</p>
+                <div className="bg-green-100/90 backdrop-blur-sm rounded-xl p-3 border border-green-200 shadow-sm">
+                  <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-600" />
+                  <h2 className="text-xl font-bold text-green-800 mb-1">{t('customer.order_ready')}</h2>
+                  <p className="text-green-700 text-sm font-semibold">{allReadyOrders.length} {t('kds.order').toLowerCase()}</p>
                 </div>
               </div>
 
@@ -259,24 +259,24 @@ export function CustomerMonitor() {
                   return (
                     <Card 
                       key={order.id}
-                      className="bg-gradient-to-br from-green-700/80 to-emerald-700/80 backdrop-blur-sm border-yellow-400/90 shadow-2xl transform hover:scale-102 transition-transform animate-pulse ring-4 ring-yellow-400/90 border-2"
+                      className="bg-gradient-to-br from-green-200/90 to-emerald-200/90 backdrop-blur-sm border-green-400 shadow-lg transform hover:scale-102 transition-transform animate-pulse ring-4 ring-green-300 border-2"
                       data-testid={`ready-order-${order.id}`}
                     >
                       <CardContent className="p-3">
                         <div className="text-center mb-2">
-                          <div className="text-4xl font-bold text-yellow-100 mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" data-testid={`ready-order-number-${order.id}`}>
+                          <div className="text-4xl font-bold text-green-800 mb-1" data-testid={`ready-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-yellow-200/90 text-xs font-medium drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{t('customer.order_number')}</div>
+                          <div className="text-green-700 text-xs font-medium">{t('customer.order_number')}</div>
                         </div>
                         
                         <div className="text-center space-y-2">
-                          <Bell className="w-10 h-10 mx-auto text-yellow-300 animate-bounce drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-                          <div className="text-lg font-bold text-yellow-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" data-testid={`ready-status-${order.id}`}>
+                          <Bell className="w-10 h-10 mx-auto text-green-600 animate-bounce" />
+                          <div className="text-lg font-bold text-green-800" data-testid={`ready-status-${order.id}`}>
                             {t('customer.order_ready')}
                           </div>
-                          <div className="text-yellow-200 text-sm font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{t('customer.collect')}</div>
-                          <div className="text-xs text-yellow-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                          <div className="text-green-700 text-sm font-bold">{t('customer.collect')}</div>
+                          <div className="text-xs text-green-700">
                             Pronto da {elapsedTime}
                           </div>
                         </div>
@@ -290,22 +290,22 @@ export function CustomerMonitor() {
               {otherReadyOrders.length > 0 && (
                 <div className="mt-4">
                   <div className="text-center mb-2">
-                    <div className="bg-green-500/20 backdrop-blur-sm rounded-lg p-2 border border-green-300/30">
-                      <h3 className="text-sm font-bold text-green-200">ALTRI ({otherReadyOrders.length})</h3>
+                    <div className="bg-green-50/80 backdrop-blur-sm rounded-lg p-2 border border-green-200">
+                      <h3 className="text-sm font-bold text-green-700">ALTRI ({otherReadyOrders.length})</h3>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {otherReadyOrders.map((order) => (
                       <Card 
                         key={order.id}
-                        className="bg-green-700/70 backdrop-blur-sm border-yellow-400/70 hover:bg-green-700/80 transition-colors animate-pulse ring-2 ring-yellow-400/50"
+                        className="bg-green-200/80 backdrop-blur-sm border-green-300 hover:bg-green-200 transition-colors animate-pulse ring-2 ring-green-400/50 shadow-sm"
                         data-testid={`other-ready-order-${order.id}`}
                       >
                         <CardContent className="p-2 text-center">
-                          <div className="text-2xl font-bold text-yellow-100 mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" data-testid={`other-ready-order-number-${order.id}`}>
+                          <div className="text-2xl font-bold text-green-800 mb-1" data-testid={`other-ready-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-xs text-yellow-200 font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">PRONTO</div>
+                          <div className="text-xs text-green-700 font-bold">PRONTO</div>
                         </CardContent>
                       </Card>
                     ))}
@@ -317,7 +317,7 @@ export function CustomerMonitor() {
         )}
 
         {/* Footer */}
-        <div className="text-center mt-8 text-white/50">
+        <div className="text-center mt-8 text-gray-500">
           <p className="text-sm">{t('customer.thank_you')}</p>
         </div>
       </div>
