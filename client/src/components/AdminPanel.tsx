@@ -528,7 +528,10 @@ export function AdminPanel() {
                       </div>
                       <div>
                         <Label htmlFor="categoryId">Categoria</Label>
-                        <Select onValueChange={(value) => itemForm.setValue('categoryId', value)}>
+                        <Select 
+                          value={itemForm.watch('categoryId')} 
+                          onValueChange={(value) => itemForm.setValue('categoryId', value)}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona categoria" />
                           </SelectTrigger>
@@ -541,7 +544,10 @@ export function AdminPanel() {
                       </div>
                       <div>
                         <Label htmlFor="station">Stazione</Label>
-                        <Select onValueChange={(value) => itemForm.setValue('station', value)}>
+                        <Select 
+                          value={itemForm.watch('station')} 
+                          onValueChange={(value) => itemForm.setValue('station', value)}
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona stazione" />
                           </SelectTrigger>
@@ -578,7 +584,10 @@ export function AdminPanel() {
                         
                         <div className="mt-3">
                           <Label htmlFor="departmentId">Reparto</Label>
-                          <Select onValueChange={(value) => itemForm.setValue('departmentId', value)}>
+                          <Select 
+                            value={itemForm.watch('departmentId')} 
+                            onValueChange={(value) => itemForm.setValue('departmentId', value)}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Seleziona reparto" />
                             </SelectTrigger>
