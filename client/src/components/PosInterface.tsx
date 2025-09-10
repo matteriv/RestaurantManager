@@ -123,7 +123,6 @@ export function PosInterface() {
     } else {
       const newItem: OrderItem = {
         tempId: Date.now().toString(),
-        orderId: '', // Will be set when order is created
         menuItemId: menuItem.id,
         quantity: 1,
         unitPrice: menuItem.price,
@@ -310,7 +309,7 @@ export function PosInterface() {
             <div 
               {...provided.droppableProps}
               ref={provided.innerRef}
-              className="p-1 grid grid-cols-4 gap-0.5 h-full overflow-y-auto"
+              className="p-1 grid grid-cols-4 gap-0.5 overflow-y-auto"
             >
           {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
