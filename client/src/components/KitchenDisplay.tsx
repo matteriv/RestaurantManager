@@ -468,6 +468,7 @@ export function KitchenDisplay() {
                                     <OrderLineItem 
                                       key={line.id}
                                       orderLine={line}
+                                      order={order}
                                       onStatusUpdate={updateLineStatus}
                                       isUpdating={updateOrderLineMutation.isPending}
                                     />
