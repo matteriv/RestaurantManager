@@ -25,12 +25,18 @@ export function CustomerMonitor() {
   });
 
   // Filter and separate orders - priority to "ready" status
+  // Exclude delivered/served orders completely
   const allReadyOrders = orders.filter(order => 
-    order.status === 'ready' || 
-    (order.orderLines.length > 0 && order.orderLines.every(line => line.status === 'ready' || line.status === 'served'))
+    order.status !== 'served' && (
+      order.status === 'ready' || 
+      (order.orderLines.length > 0 && order.orderLines.every(line => line.status === 'ready' || line.status === 'served'))
+    )
   );
 
   const allPreparingOrders = orders.filter(order => {
+    // Exclude delivered/served orders completely
+    if (order.status === 'served') return false;
+    
     // Exclude orders already in ready category
     const isReady = order.status === 'ready' || 
       (order.orderLines.length > 0 && order.orderLines.every(line => line.status === 'ready' || line.status === 'served'));
