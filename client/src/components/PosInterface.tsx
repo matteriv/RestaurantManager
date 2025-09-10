@@ -98,7 +98,7 @@ export function PosInterface() {
       setOrderItems(items => 
         items.map(item => 
           item.tempId === existingItem.tempId
-            ? { ...item, quantity: item.quantity + 1, totalPrice: (item.quantity + 1) * Number(menuItem.price) }
+            ? { ...item, quantity: (item.quantity || 1) + 1, totalPrice: ((item.quantity || 1) + 1) * Number(menuItem.price) }
             : item
         )
       );
@@ -123,7 +123,7 @@ export function PosInterface() {
     setOrderItems(items => 
       items.map(item => {
         if (item.tempId === tempId) {
-          const newQuantity = Math.max(0, item.quantity + change);
+          const newQuantity = Math.max(0, (item.quantity || 1) + change);
           if (newQuantity === 0) {
             return null;
           }
@@ -242,7 +242,7 @@ export function PosInterface() {
                   <div className="flex justify-between items-center mt-2">
                     <span className="text-lg font-semibold text-primary">€{Number(item.price).toFixed(2)}</span>
                     <span className="text-xs text-muted-foreground">
-                      {item.prepTimeMinutes > 0 ? `${item.prepTimeMinutes} min` : 'Ready'}
+                      {(item.prepTimeMinutes || 0) > 0 ? `${item.prepTimeMinutes || 0} min` : 'Ready'}
                     </span>
                   </div>
                 </div>
