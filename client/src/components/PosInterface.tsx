@@ -43,6 +43,16 @@ export function PosInterface() {
     queryKey: ['/api/tables'],
   });
 
+  // Daily sales data
+  const { data: dailySales = { total: 0, orderCount: 0, avgOrderValue: 0 } } = useQuery({
+    queryKey: ['/api/analytics/daily-sales', new Date().toISOString().split('T')[0]],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/analytics/daily-sales?date=${new Date().toISOString().split('T')[0]}`);
+      return response.json();
+    },
+    refetchInterval: 60000, // Refresh every minute
+  });
+
   // Mutations
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
@@ -209,6 +219,33 @@ export function PosInterface() {
     <div className="flex h-screen bg-background">
       {/* Left Panel - Menu */}
       <div className="w-2/3 bg-card border-r border-border">
+        {/* Daily Sales Summary */}
+        <div className="border-b border-border bg-blue-50 px-4 py-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-blue-900">Vendite di Oggi</h3>
+            <div className="flex items-center space-x-6 text-sm">
+              <div className="flex items-center space-x-2">
+                <span className="text-blue-700">Ordini:</span>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                  {dailySales.orderCount}
+                </Badge>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-blue-700">Totale:</span>
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  €{dailySales.total ? Number(dailySales.total).toFixed(2) : '0.00'}
+                </Badge>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-blue-700">Media:</span>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                  €{dailySales.avgOrderValue ? Number(dailySales.avgOrderValue).toFixed(2) : '0.00'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         {/* Category Tabs */}
         <div className="border-b border-border bg-muted/30">
           <div className="flex space-x-1 p-2 overflow-x-auto">
