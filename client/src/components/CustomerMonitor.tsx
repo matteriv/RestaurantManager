@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -14,6 +14,7 @@ export function CustomerMonitor() {
   const [readyOrders, setReadyOrders] = useState<Set<string>>(new Set());
   const [audioEnabled, setAudioEnabled] = useState(true);
   const { t, language } = useTranslation();
+  const queryClient = useQueryClient();
   
   const { lastMessage, isConnected } = useWebSocketContext();
 
@@ -24,15 +25,22 @@ export function CustomerMonitor() {
   });
 
   // Filter and separate orders
-  const preparingOrders = orders.filter(order => 
+  const allPreparingOrders = orders.filter(order => 
     order.status === 'preparing' || 
     (order.status === 'new' && order.orderLines.some(line => line.status === 'preparing'))
   );
 
-  const readyOrders_ = orders.filter(order => 
+  const allReadyOrders = orders.filter(order => 
     order.status === 'ready' || 
     order.orderLines.every(line => line.status === 'ready' || line.status === 'served')
   );
+
+  // Limit displayed orders and create "others" sections
+  const maxDisplayed = 3;
+  const preparingOrders = allPreparingOrders.slice(0, maxDisplayed);
+  const otherPreparingOrders = allPreparingOrders.slice(maxDisplayed);
+  const readyOrders_ = allReadyOrders.slice(0, maxDisplayed);
+  const otherReadyOrders = allReadyOrders.slice(maxDisplayed);
 
   // Handle WebSocket messages for real-time updates
   useEffect(() => {
@@ -40,6 +48,8 @@ export function CustomerMonitor() {
       switch (lastMessage.type) {
         case 'order-status-updated':
           const { order } = lastMessage.data;
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
           if (order.status === 'ready') {
             setReadyOrders(prev => new Set([...Array.from(prev), order.id]));
             // Play notification sound
@@ -49,6 +59,8 @@ export function CustomerMonitor() {
           }
           break;
         case 'order-line-status-updated':
+          // Invalidate queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
           // Check if all lines in order are ready
           const orderId = lastMessage.data.orderLine.orderId;
           const orderToCheck = orders.find(o => o.id === orderId);
@@ -61,7 +73,7 @@ export function CustomerMonitor() {
           break;
       }
     }
-  }, [lastMessage, orders, audioEnabled]);
+  }, [lastMessage, orders, audioEnabled, queryClient]);
 
   const playNotificationSound = () => {
     try {
@@ -138,7 +150,7 @@ export function CustomerMonitor() {
 
       {/* Main Content */}
       <div className="flex-1 p-4">
-        {preparingOrders.length === 0 && readyOrders_.length === 0 ? (
+        {allPreparingOrders.length === 0 && allReadyOrders.length === 0 ? (
           <div className="text-center text-white mt-16">
             <ChefHat className="w-16 h-16 mx-auto mb-4 text-white/50" />
             <h2 className="text-2xl font-bold mb-2">{t('customer.no_orders')}</h2>
@@ -152,7 +164,7 @@ export function CustomerMonitor() {
                 <div className="bg-orange-500/30 backdrop-blur-sm rounded-xl p-3 border border-orange-300/50">
                   <ChefHat className="w-8 h-8 mx-auto mb-2 text-orange-300" />
                   <h2 className="text-xl font-bold text-white mb-1">{t('customer.cooking')}</h2>
-                  <p className="text-orange-200 text-sm font-semibold">{preparingOrders.length} {t('kds.order').toLowerCase()}</p>
+                  <p className="text-orange-200 text-sm font-semibold">{allPreparingOrders.length} {t('kds.order').toLowerCase()}</p>
                 </div>
               </div>
 
@@ -201,6 +213,33 @@ export function CustomerMonitor() {
                   );
                 })}
               </div>
+
+              {/* Other Preparing Orders Section */}
+              {otherPreparingOrders.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-center mb-2">
+                    <div className="bg-orange-500/20 backdrop-blur-sm rounded-lg p-2 border border-orange-300/30">
+                      <h3 className="text-sm font-bold text-orange-200">ALTRI ({otherPreparingOrders.length})</h3>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {otherPreparingOrders.map((order) => (
+                      <Card 
+                        key={order.id}
+                        className="bg-white/10 backdrop-blur-sm border-orange-300/30 hover:bg-white/15 transition-colors"
+                        data-testid={`other-preparing-order-${order.id}`}
+                      >
+                        <CardContent className="p-2 text-center">
+                          <div className="text-2xl font-bold text-orange-200 mb-1" data-testid={`other-order-number-${order.id}`}>
+                            {order.orderNumber}
+                          </div>
+                          <div className="text-xs text-white/80">{getElapsedTime(order)} fa</div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Ready Orders Section */}
@@ -209,7 +248,7 @@ export function CustomerMonitor() {
                 <div className="bg-green-500/30 backdrop-blur-sm rounded-xl p-3 border border-green-300/50">
                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-300" />
                   <h2 className="text-xl font-bold text-white mb-1">{t('customer.order_ready')}</h2>
-                  <p className="text-green-200 text-sm font-semibold">{readyOrders_.length} {t('kds.order').toLowerCase()}</p>
+                  <p className="text-green-200 text-sm font-semibold">{allReadyOrders.length} {t('kds.order').toLowerCase()}</p>
                 </div>
               </div>
 
@@ -220,23 +259,23 @@ export function CustomerMonitor() {
                   return (
                     <Card 
                       key={order.id}
-                      className="bg-gradient-to-br from-green-500/30 to-emerald-500/30 backdrop-blur-sm border-green-300/60 shadow-2xl transform hover:scale-102 transition-transform animate-pulse ring-2 ring-green-400/50"
+                      className="bg-gradient-to-br from-green-600/40 to-emerald-600/40 backdrop-blur-sm border-green-200/80 shadow-2xl transform hover:scale-102 transition-transform animate-pulse ring-4 ring-yellow-300/70 border-2"
                       data-testid={`ready-order-${order.id}`}
                     >
                       <CardContent className="p-3">
                         <div className="text-center mb-2">
-                          <div className="text-4xl font-bold text-green-200 mb-1" data-testid={`ready-order-number-${order.id}`}>
+                          <div className="text-4xl font-bold text-white mb-1 drop-shadow-lg" data-testid={`ready-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
                           <div className="text-white/90 text-xs font-medium">{t('customer.order_number')}</div>
                         </div>
                         
                         <div className="text-center space-y-2">
-                          <Bell className="w-10 h-10 mx-auto text-green-300 animate-bounce" />
-                          <div className="text-lg font-bold text-green-200" data-testid={`ready-status-${order.id}`}>
+                          <Bell className="w-10 h-10 mx-auto text-yellow-200 animate-bounce drop-shadow-lg" />
+                          <div className="text-lg font-bold text-white drop-shadow-lg" data-testid={`ready-status-${order.id}`}>
                             {t('customer.order_ready')}
                           </div>
-                          <div className="text-green-100 text-sm font-semibold">{t('customer.collect')}</div>
+                          <div className="text-yellow-100 text-sm font-bold drop-shadow-md">{t('customer.collect')}</div>
                           <div className="text-xs text-white/80">
                             Pronto da {elapsedTime}
                           </div>
@@ -246,6 +285,33 @@ export function CustomerMonitor() {
                   );
                 })}
               </div>
+
+              {/* Other Ready Orders Section */}
+              {otherReadyOrders.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-center mb-2">
+                    <div className="bg-green-500/20 backdrop-blur-sm rounded-lg p-2 border border-green-300/30">
+                      <h3 className="text-sm font-bold text-green-200">ALTRI ({otherReadyOrders.length})</h3>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {otherReadyOrders.map((order) => (
+                      <Card 
+                        key={order.id}
+                        className="bg-green-500/20 backdrop-blur-sm border-green-300/40 hover:bg-green-500/30 transition-colors animate-pulse"
+                        data-testid={`other-ready-order-${order.id}`}
+                      >
+                        <CardContent className="p-2 text-center">
+                          <div className="text-2xl font-bold text-white mb-1 drop-shadow-lg" data-testid={`other-ready-order-number-${order.id}`}>
+                            {order.orderNumber}
+                          </div>
+                          <div className="text-xs text-yellow-100 font-semibold">PRONTO</div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
