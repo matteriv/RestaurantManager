@@ -117,19 +117,19 @@ export function CustomerMonitor() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-purple-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-800 to-indigo-900">
       {/* Header */}
-      <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 p-6">
+      <div className="bg-white/20 backdrop-blur-sm border-b border-white/30 p-4">
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-white mb-2">{t('customer.title')}</h1>
-          <p className="text-white/80 text-xl">{t('customer.subtitle')}</p>
-          <div className="flex items-center justify-center mt-4 space-x-3">
+          <h1 className="text-3xl font-bold text-white mb-1">{t('customer.title')}</h1>
+          <p className="text-white/90 text-lg">{t('customer.subtitle')}</p>
+          <div className="flex items-center justify-center mt-2 space-x-3">
             {isConnected ? (
-              <Wifi className="w-5 h-5 text-green-400" />
+              <Wifi className="w-4 h-4 text-green-300" />
             ) : (
-              <WifiOff className="w-5 h-5 text-red-400" />
+              <WifiOff className="w-4 h-4 text-red-300" />
             )}
-            <span className="text-white/60 text-lg">
+            <span className="text-white/80 text-sm">
               {isConnected ? t('customer.live_updates') : t('customer.connecting')}
             </span>
           </div>
@@ -137,26 +137,26 @@ export function CustomerMonitor() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8">
+      <div className="flex-1 p-4">
         {preparingOrders.length === 0 && readyOrders_.length === 0 ? (
-          <div className="text-center text-white mt-20">
-            <ChefHat className="w-24 h-24 mx-auto mb-6 text-white/40" />
-            <h2 className="text-4xl font-bold mb-4">{t('customer.no_orders')}</h2>
-            <p className="text-white/80 text-xl">{t('customer.no_orders_desc')}</p>
+          <div className="text-center text-white mt-16">
+            <ChefHat className="w-16 h-16 mx-auto mb-4 text-white/50" />
+            <h2 className="text-2xl font-bold mb-2">{t('customer.no_orders')}</h2>
+            <p className="text-white/80 text-lg">{t('customer.no_orders_desc')}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-12">
+          <div className="grid grid-cols-2 gap-6">
             {/* Preparing Orders Section */}
             <div>
-              <div className="text-center mb-8">
-                <div className="bg-orange-500/20 backdrop-blur-sm rounded-2xl p-6 border border-orange-300/30">
-                  <ChefHat className="w-12 h-12 mx-auto mb-3 text-orange-300" />
-                  <h2 className="text-3xl font-bold text-white mb-2">{t('customer.cooking')}</h2>
-                  <p className="text-orange-200 text-lg">{preparingOrders.length} {t('kds.order').toLowerCase()}</p>
+              <div className="text-center mb-4">
+                <div className="bg-orange-500/30 backdrop-blur-sm rounded-xl p-3 border border-orange-300/50">
+                  <ChefHat className="w-8 h-8 mx-auto mb-2 text-orange-300" />
+                  <h2 className="text-xl font-bold text-white mb-1">{t('customer.cooking')}</h2>
+                  <p className="text-orange-200 text-sm font-semibold">{preparingOrders.length} {t('kds.order').toLowerCase()}</p>
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-3">
                 {preparingOrders.map((order) => {
                   const progress = getOrderProgress(order);
                   const estimatedTime = getEstimatedTime(order);
@@ -165,34 +165,34 @@ export function CustomerMonitor() {
                   return (
                     <Card 
                       key={order.id}
-                      className="bg-white/10 backdrop-blur-sm border-orange-300/30 hover:bg-white/15 transition-colors"
+                      className="bg-white/15 backdrop-blur-sm border-orange-300/50 hover:bg-white/20 transition-colors shadow-lg"
                       data-testid={`preparing-order-${order.id}`}
                     >
-                      <CardContent className="p-6">
-                        <div className="text-center mb-4">
-                          <div className="text-6xl font-bold text-orange-300 mb-2" data-testid={`order-number-${order.id}`}>
+                      <CardContent className="p-3">
+                        <div className="text-center mb-3">
+                          <div className="text-4xl font-bold text-orange-200 mb-1" data-testid={`order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-white/80 text-sm">{t('customer.order_number')}</div>
+                          <div className="text-white/90 text-xs font-medium">{t('customer.order_number')}</div>
                         </div>
                         
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center text-white/80">
-                            <span className="flex items-center gap-2">
-                              <Clock className="w-4 h-4" />
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center text-white/90">
+                            <span className="flex items-center gap-1 text-xs">
+                              <Clock className="w-3 h-3" />
                               {t('customer.progress')}
                             </span>
-                            <span className="font-medium">{progress}%</span>
+                            <span className="font-bold text-orange-200">{progress}%</span>
                           </div>
                           
                           <Progress 
                             value={progress} 
-                            className="h-3 bg-white/20"
+                            className="h-2 bg-white/30"
                             data-testid={`progress-${order.id}`}
                           />
                           
-                          <div className="flex justify-between text-sm text-white/60">
-                            <span>{t('customer.estimated_time')}: {estimatedTime}</span>
+                          <div className="flex justify-between text-xs text-white/80">
+                            <span className="font-medium">{estimatedTime}</span>
                             <span>{elapsedTime} fa</span>
                           </div>
                         </div>
@@ -205,39 +205,39 @@ export function CustomerMonitor() {
 
             {/* Ready Orders Section */}
             <div>
-              <div className="text-center mb-8">
-                <div className="bg-green-500/20 backdrop-blur-sm rounded-2xl p-6 border border-green-300/30">
-                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-300" />
-                  <h2 className="text-3xl font-bold text-white mb-2">{t('customer.order_ready')}</h2>
-                  <p className="text-green-200 text-lg">{readyOrders_.length} {t('kds.order').toLowerCase()}</p>
+              <div className="text-center mb-4">
+                <div className="bg-green-500/30 backdrop-blur-sm rounded-xl p-3 border border-green-300/50">
+                  <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-300" />
+                  <h2 className="text-xl font-bold text-white mb-1">{t('customer.order_ready')}</h2>
+                  <p className="text-green-200 text-sm font-semibold">{readyOrders_.length} {t('kds.order').toLowerCase()}</p>
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-3">
                 {readyOrders_.map((order) => {
                   const elapsedTime = getElapsedTime(order);
                   
                   return (
                     <Card 
                       key={order.id}
-                      className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-sm border-green-300/30 shadow-2xl transform hover:scale-105 transition-transform animate-pulse"
+                      className="bg-gradient-to-br from-green-500/30 to-emerald-500/30 backdrop-blur-sm border-green-300/60 shadow-2xl transform hover:scale-102 transition-transform animate-pulse ring-2 ring-green-400/50"
                       data-testid={`ready-order-${order.id}`}
                     >
-                      <CardContent className="p-6">
-                        <div className="text-center mb-4">
-                          <div className="text-6xl font-bold text-green-300 mb-2" data-testid={`ready-order-number-${order.id}`}>
+                      <CardContent className="p-3">
+                        <div className="text-center mb-2">
+                          <div className="text-4xl font-bold text-green-200 mb-1" data-testid={`ready-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-white/80 text-sm">{t('customer.order_number')}</div>
+                          <div className="text-white/90 text-xs font-medium">{t('customer.order_number')}</div>
                         </div>
                         
-                        <div className="text-center space-y-3">
-                          <Bell className="w-16 h-16 mx-auto text-green-300 animate-bounce" />
-                          <div className="text-2xl font-bold text-green-300" data-testid={`ready-status-${order.id}`}>
+                        <div className="text-center space-y-2">
+                          <Bell className="w-10 h-10 mx-auto text-green-300 animate-bounce" />
+                          <div className="text-lg font-bold text-green-200" data-testid={`ready-status-${order.id}`}>
                             {t('customer.order_ready')}
                           </div>
-                          <div className="text-green-200">{t('customer.collect')}</div>
-                          <div className="text-sm text-white/60">
+                          <div className="text-green-100 text-sm font-semibold">{t('customer.collect')}</div>
+                          <div className="text-xs text-white/80">
                             Pronto da {elapsedTime}
                           </div>
                         </div>
@@ -251,8 +251,8 @@ export function CustomerMonitor() {
         )}
 
         {/* Footer */}
-        <div className="text-center mt-16 text-white/40">
-          <p className="text-lg">{t('customer.thank_you')}</p>
+        <div className="text-center mt-8 text-white/50">
+          <p className="text-sm">{t('customer.thank_you')}</p>
         </div>
       </div>
     </div>
