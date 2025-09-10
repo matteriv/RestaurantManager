@@ -20,6 +20,11 @@ function Router() {
     return (
       <Switch>
         <Route path="/" component={Landing} />
+        <Route path="/customer">
+          <WebSocketProvider clientType="customer">
+            <CustomerMonitor />
+          </WebSocketProvider>
+        </Route>
         <Route component={NotFound} />
       </Switch>
     );
