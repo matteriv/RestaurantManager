@@ -1,27 +1,37 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
-import { Bell } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
+import { Bell, Clock, ChefHat, CheckCircle, Wifi, WifiOff } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { it } from 'date-fns/locale';
 import type { OrderWithDetails } from '@shared/schema';
 
 export function CustomerMonitor() {
   const [readyOrders, setReadyOrders] = useState<Set<string>>(new Set());
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const { t, language } = useTranslation();
   
   const { lastMessage, isConnected } = useWebSocketContext();
 
   // Fetch orders that customers should see (preparing, ready)
   const { data: orders = [] } = useQuery<OrderWithDetails[]>({
     queryKey: ['/api/orders'],
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
   });
 
-  // Filter orders for customer display
-  const customerOrders = orders.filter(order => 
-    ['preparing', 'ready'].includes(order.status)
+  // Filter and separate orders
+  const preparingOrders = orders.filter(order => 
+    order.status === 'preparing' || 
+    (order.status === 'new' && order.orderLines.some(line => line.status === 'preparing'))
+  );
+
+  const readyOrders_ = orders.filter(order => 
+    order.status === 'ready' || 
+    order.orderLines.every(line => line.status === 'ready' || line.status === 'served')
   );
 
   // Handle WebSocket messages for real-time updates
@@ -31,7 +41,7 @@ export function CustomerMonitor() {
         case 'order-status-updated':
           const { order } = lastMessage.data;
           if (order.status === 'ready') {
-            setReadyOrders(prev => new Set([...prev, order.id]));
+            setReadyOrders(prev => new Set([...Array.from(prev), order.id]));
             // Play notification sound
             if (audioEnabled) {
               playNotificationSound();
@@ -43,7 +53,7 @@ export function CustomerMonitor() {
           const orderId = lastMessage.data.orderLine.orderId;
           const orderToCheck = orders.find(o => o.id === orderId);
           if (orderToCheck && orderToCheck.orderLines.every(line => line.status === 'ready')) {
-            setReadyOrders(prev => new Set([...prev, orderId]));
+            setReadyOrders(prev => new Set([...Array.from(prev), orderId]));
             if (audioEnabled) {
               playNotificationSound();
             }
@@ -79,7 +89,7 @@ export function CustomerMonitor() {
 
   const getOrderProgress = (order: OrderWithDetails) => {
     const totalLines = order.orderLines.length;
-    const readyLines = order.orderLines.filter(line => line.status === 'ready').length;
+    const readyLines = order.orderLines.filter(line => line.status === 'ready' || line.status === 'served').length;
     const preparingLines = order.orderLines.filter(line => line.status === 'preparing').length;
     
     // Calculate progress: preparing = 50%, ready = 100%
@@ -89,152 +99,160 @@ export function CustomerMonitor() {
 
   const getEstimatedTime = (order: OrderWithDetails) => {
     const preparingLines = order.orderLines.filter(line => line.status === 'preparing');
-    if (preparingLines.length === 0) return 'Ready!';
+    if (preparingLines.length === 0) return t('customer.order_ready');
     
     const avgPrepTime = preparingLines.reduce((sum, line) => 
       sum + (line.menuItem.prepTimeMinutes || 10), 0
     ) / preparingLines.length;
     
-    return `~${Math.ceil(avgPrepTime)} minutes remaining`;
+    return `${Math.ceil(avgPrepTime)} ${t('customer.remaining_min')}`;
   };
 
-  const isOrderReady = (order: OrderWithDetails) => {
-    return order.status === 'ready' || 
-           order.orderLines.every(line => line.status === 'ready');
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'preparing': return 'bg-yellow-100 text-yellow-800';
-      case 'ready': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getElapsedTime = (order: OrderWithDetails) => {
+    if (!order.createdAt) return '';
+    return formatDistanceToNow(new Date(order.createdAt), { 
+      addSuffix: false, 
+      locale: language === 'it' ? it : undefined 
+    });
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary to-secondary flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-purple-900">
       {/* Header */}
       <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 p-6">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white mb-2">Order Status</h1>
-          <p className="text-white/80 text-lg">Track your order progress in real-time</p>
-          <div className="flex items-center justify-center mt-2 space-x-2">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-            <span className="text-white/60 text-sm">{isConnected ? 'Live Updates' : 'Connecting...'}</span>
+          <h1 className="text-5xl font-bold text-white mb-2">{t('customer.title')}</h1>
+          <p className="text-white/80 text-xl">{t('customer.subtitle')}</p>
+          <div className="flex items-center justify-center mt-4 space-x-3">
+            {isConnected ? (
+              <Wifi className="w-5 h-5 text-green-400" />
+            ) : (
+              <WifiOff className="w-5 h-5 text-red-400" />
+            )}
+            <span className="text-white/60 text-lg">
+              {isConnected ? t('customer.live_updates') : t('customer.connecting')}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 p-8">
-        {customerOrders.length === 0 ? (
-          <div className="text-center text-white">
-            <h2 className="text-2xl font-bold mb-4">No Active Orders</h2>
-            <p className="text-white/80">All orders have been served. Thank you!</p>
+        {preparingOrders.length === 0 && readyOrders_.length === 0 ? (
+          <div className="text-center text-white mt-20">
+            <ChefHat className="w-24 h-24 mx-auto mb-6 text-white/40" />
+            <h2 className="text-4xl font-bold mb-4">{t('customer.no_orders')}</h2>
+            <p className="text-white/80 text-xl">{t('customer.no_orders_desc')}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            {customerOrders.map((order) => {
-              const orderReady = isOrderReady(order);
-              const progress = getOrderProgress(order);
-              
-              return (
-                <Card 
-                  key={order.id}
-                  className={`${
-                    orderReady 
-                      ? 'bg-gradient-to-br from-success to-green-400 text-white shadow-2xl transform animate-bounce' 
-                      : 'bg-white shadow-2xl'
-                  } rounded-2xl p-8 transform hover:scale-105 transition-transform`}
-                  data-testid={`customer-order-${order.id}`}
-                >
-                  <CardContent className="p-0">
-                    <div className="text-center mb-6">
-                      <div className={`text-6xl font-bold mb-2 ${orderReady ? 'text-white' : 'text-primary'}`} data-testid={`order-number-display-${order.id}`}>
-                        {order.orderNumber}
-                      </div>
-                      <div className={`text-xl ${orderReady ? 'text-white/80' : 'text-muted-foreground'}`}>
-                        Order Number
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4 mb-6">
-                      {order.orderLines.map((line) => (
-                        <div 
-                          key={line.id}
-                          className={`flex items-center justify-between p-3 rounded-lg ${
-                            orderReady ? 'bg-white/20' : 'bg-accent'
-                          }`}
-                          data-testid={`customer-line-${line.id}`}
-                        >
-                          <span className={`font-medium ${orderReady ? 'text-white' : 'text-foreground'}`}>
-                            {line.menuItem.name} {line.quantity > 1 && `x${line.quantity}`}
-                          </span>
-                          <Badge 
-                            className={orderReady ? 'bg-white/30 text-white' : getStatusColor(line.status)}
-                            data-testid={`customer-line-status-${line.id}`}
-                          >
-                            {line.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
+          <div className="grid grid-cols-2 gap-12">
+            {/* Preparing Orders Section */}
+            <div>
+              <div className="text-center mb-8">
+                <div className="bg-orange-500/20 backdrop-blur-sm rounded-2xl p-6 border border-orange-300/30">
+                  <ChefHat className="w-12 h-12 mx-auto mb-3 text-orange-300" />
+                  <h2 className="text-3xl font-bold text-white mb-2">{t('customer.cooking')}</h2>
+                  <p className="text-orange-200 text-lg">{preparingOrders.length} {t('kds.order').toLowerCase()}</p>
+                </div>
+              </div>
 
-                    {orderReady ? (
-                      <div className="text-center">
-                        <div className="text-4xl mb-4">
-                          <Bell className="w-16 h-16 mx-auto text-white animate-bounce" />
-                        </div>
-                        <div className="text-2xl font-bold text-white mb-2" data-testid={`order-ready-${order.id}`}>
-                          ORDER READY!
-                        </div>
-                        <div className="text-white/80">Please collect from counter</div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mb-6">
-                          <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                            <span>Progress</span>
-                            <span data-testid={`estimated-time-${order.id}`}>{getEstimatedTime(order)}</span>
+              <div className="space-y-6">
+                {preparingOrders.map((order) => {
+                  const progress = getOrderProgress(order);
+                  const estimatedTime = getEstimatedTime(order);
+                  const elapsedTime = getElapsedTime(order);
+                  
+                  return (
+                    <Card 
+                      key={order.id}
+                      className="bg-white/10 backdrop-blur-sm border-orange-300/30 hover:bg-white/15 transition-colors"
+                      data-testid={`preparing-order-${order.id}`}
+                    >
+                      <CardContent className="p-6">
+                        <div className="text-center mb-4">
+                          <div className="text-6xl font-bold text-orange-300 mb-2" data-testid={`order-number-${order.id}`}>
+                            {order.orderNumber}
                           </div>
+                          <div className="text-white/80 text-sm">{t('customer.order_number')}</div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center text-white/80">
+                            <span className="flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              {t('customer.progress')}
+                            </span>
+                            <span className="font-medium">{progress}%</span>
+                          </div>
+                          
                           <Progress 
                             value={progress} 
-                            className="h-3"
-                            data-testid={`progress-bar-${order.id}`}
+                            className="h-3 bg-white/20"
+                            data-testid={`progress-${order.id}`}
                           />
-                        </div>
-
-                        <div className="text-center">
-                          <div className="inline-flex items-center space-x-2 text-warning">
-                            <div className="w-3 h-3 bg-warning rounded-full animate-pulse"></div>
-                            <span className="font-medium" data-testid={`status-text-${order.id}`}>
-                              {progress < 100 ? 'Cooking in Progress' : 'Almost Ready!'}
-                            </span>
+                          
+                          <div className="flex justify-between text-sm text-white/60">
+                            <span>{t('customer.estimated_time')}: {estimatedTime}</span>
+                            <span>{elapsedTime} fa</span>
                           </div>
                         </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Ready Orders Section */}
+            <div>
+              <div className="text-center mb-8">
+                <div className="bg-green-500/20 backdrop-blur-sm rounded-2xl p-6 border border-green-300/30">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-300" />
+                  <h2 className="text-3xl font-bold text-white mb-2">{t('customer.order_ready')}</h2>
+                  <p className="text-green-200 text-lg">{readyOrders_.length} {t('kds.order').toLowerCase()}</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {readyOrders_.map((order) => {
+                  const elapsedTime = getElapsedTime(order);
+                  
+                  return (
+                    <Card 
+                      key={order.id}
+                      className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-sm border-green-300/30 shadow-2xl transform hover:scale-105 transition-transform animate-pulse"
+                      data-testid={`ready-order-${order.id}`}
+                    >
+                      <CardContent className="p-6">
+                        <div className="text-center mb-4">
+                          <div className="text-6xl font-bold text-green-300 mb-2" data-testid={`ready-order-number-${order.id}`}>
+                            {order.orderNumber}
+                          </div>
+                          <div className="text-white/80 text-sm">{t('customer.order_number')}</div>
+                        </div>
+                        
+                        <div className="text-center space-y-3">
+                          <Bell className="w-16 h-16 mx-auto text-green-300 animate-bounce" />
+                          <div className="text-2xl font-bold text-green-300" data-testid={`ready-status-${order.id}`}>
+                            {t('customer.order_ready')}
+                          </div>
+                          <div className="text-green-200">{t('customer.collect')}</div>
+                          <div className="text-sm text-white/60">
+                            Pronto da {elapsedTime}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Promotional Content */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-          <div className="text-center text-white">
-            <h3 className="text-2xl font-bold mb-2">Today's Special</h3>
-            <p className="text-lg mb-4">Fresh Pasta Carbonara - Only €16.00</p>
-            <p className="text-white/80">Made with authentic Italian ingredients</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="bg-white/10 backdrop-blur-sm border-t border-white/20 p-4">
-        <div className="text-center text-white/60 text-sm">
-          <p>Thank you for dining with us! • Follow us @restaurant_social</p>
+        {/* Footer */}
+        <div className="text-center mt-16 text-white/40">
+          <p className="text-lg">{t('customer.thank_you')}</p>
         </div>
       </div>
     </div>
