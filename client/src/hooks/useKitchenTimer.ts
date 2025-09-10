@@ -6,6 +6,8 @@ export interface TimerData {
   totalSeconds: number;
   isOverdue: boolean;
   expectedTime?: number; // prepTimeMinutes from menu item
+  status: 'on-time' | 'warning' | 'overdue';
+  progressPercentage: number;
 }
 
 export function useKitchenTimer(startTime?: Date, expectedMinutes?: number): TimerData {
@@ -31,6 +33,8 @@ export function useKitchenTimer(startTime?: Date, expectedMinutes?: number): Tim
       totalSeconds: 0,
       isOverdue: false,
       expectedTime: expectedMinutes,
+      status: 'on-time',
+      progressPercentage: 0,
     };
   }
 
@@ -39,7 +43,24 @@ export function useKitchenTimer(startTime?: Date, expectedMinutes?: number): Tim
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
-  const isOverdue = expectedMinutes ? totalSeconds > (expectedMinutes * 60) : false;
+  // Calculate status and progress based on expected time
+  let timerStatus: 'on-time' | 'warning' | 'overdue' = 'on-time';
+  let progressPercentage = 0;
+  let isOverdue = false;
+
+  if (expectedMinutes) {
+    const expectedSeconds = expectedMinutes * 60;
+    progressPercentage = Math.min((totalSeconds / expectedSeconds) * 100, 100);
+    
+    if (totalSeconds > expectedSeconds) {
+      isOverdue = true;
+      timerStatus = 'overdue';
+    } else if (totalSeconds > expectedSeconds * 0.8) {
+      timerStatus = 'warning';
+    } else {
+      timerStatus = 'on-time';
+    }
+  }
 
   return {
     minutes,
@@ -47,6 +68,37 @@ export function useKitchenTimer(startTime?: Date, expectedMinutes?: number): Tim
     totalSeconds,
     isOverdue,
     expectedTime: expectedMinutes,
+    status: timerStatus,
+    progressPercentage,
+  };
+}
+
+// Hook for managing dual timers (waiting + preparation)
+export function useDualKitchenTimer(
+  orderCreatedAt?: Date,
+  startedAt?: Date,
+  completedAt?: Date,
+  expectedPrepTimeMinutes?: number,
+  status?: string
+) {
+  // Waiting timer (from order creation to start of preparation)
+  const waitingTimer = useKitchenTimer(
+    status === 'new' && orderCreatedAt ? orderCreatedAt : undefined,
+    undefined
+  );
+
+  // Preparation timer (from start to completion)  
+  const preparationTimer = useKitchenTimer(
+    (status === 'preparing' || status === 'ready') && startedAt ? startedAt : undefined,
+    expectedPrepTimeMinutes
+  );
+
+  return {
+    waitingTimer,
+    preparationTimer,
+    currentTimer: status === 'new' ? waitingTimer : preparationTimer,
+    isWaiting: status === 'new',
+    isPreparing: status === 'preparing' || status === 'ready',
   };
 }
 
