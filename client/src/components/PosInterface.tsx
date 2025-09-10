@@ -84,21 +84,10 @@ export function PosInterface() {
   // Payment mutation
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      console.log('🔄 Payment mutation starting with data:', paymentData);
-      try {
-        const response = await apiRequest('POST', '/api/payments/process', paymentData);
-        console.log('📡 Payment response received:', response.status);
-        const result = await response.json();
-        console.log('📋 Payment result:', result);
-        return result;
-      } catch (error) {
-        console.error('❌ Payment mutation error:', error);
-        throw error;
-      }
+      const response = await apiRequest('POST', '/api/payments/process', paymentData);
+      return response.json();
     },
     onSuccess: () => {
-      console.log('🎉 Payment success callback executing!');
-      
       // Capture receipt data before clearing UI state
       const receiptData = {
         items: orderItems,
@@ -108,15 +97,10 @@ export function PosInterface() {
         total: calculateTotal()
       };
       
-      console.log('📊 Receipt data captured:', receiptData);
-      console.log('🗑️ Clearing UI state...');
-      
       // Clear UI state after capturing receipt data
       setOrderItems([]);
       setOrderNotes('');
       setShowPaymentDialog(false);
-      
-      console.log('✅ UI state cleared - dialog closed, items cleared');
       
       toast({
         title: "Payment processed",
@@ -128,12 +112,10 @@ export function PosInterface() {
       
       // Print receipt with captured data to avoid using cleared state
       setTimeout(() => {
-        console.log('🖨️ Printing receipt...');
         printReceipt(receiptData);
       }, 100);
     },
     onError: (error) => {
-      console.error('💥 Payment onError callback:', error);
       toast({
         title: "Error",
         description: "Failed to process payment.",
@@ -262,9 +244,6 @@ export function PosInterface() {
   };
 
   const processPayment = () => {
-    console.log('🚀 processPayment function called!');
-    console.log('📋 Current orderItems:', orderItems.length, orderItems);
-    
     const paymentData = {
       orderItems: orderItems.map(item => ({
         menuItemId: item.menuItemId,
@@ -278,9 +257,7 @@ export function PosInterface() {
       receiptMethod: 'print',
     };
 
-    console.log('💳 Calling paymentMutation.mutate with:', paymentData);
     paymentMutation.mutate(paymentData);
-    console.log('✅ paymentMutation.mutate called');
   };
 
   const printReceipt = (receiptData?: any) => {
