@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { useToast } from '@/hooks/use-toast';
 import { useTranslation } from '@/lib/i18n';
 import { apiRequest } from '@/lib/queryClient';
@@ -528,35 +528,41 @@ export function AdminPanel() {
                       </div>
                       <div>
                         <Label htmlFor="categoryId">Categoria</Label>
-                        <Select 
-                          value={itemForm.watch('categoryId')} 
-                          onValueChange={(value) => itemForm.setValue('categoryId', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleziona categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map(category => (
-                              <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Controller
+                          name="categoryId"
+                          control={itemForm.control}
+                          render={({ field }) => (
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleziona categoria" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map(category => (
+                                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
                       </div>
                       <div>
                         <Label htmlFor="station">Stazione</Label>
-                        <Select 
-                          value={itemForm.watch('station')} 
-                          onValueChange={(value) => itemForm.setValue('station', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleziona stazione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {stations.map(station => (
-                              <SelectItem key={station.value} value={station.value}>{station.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Controller
+                          name="station"
+                          control={itemForm.control}
+                          render={({ field }) => (
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleziona stazione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {stations.map(station => (
+                                  <SelectItem key={station.value} value={station.value}>{station.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
                       </div>
                       <div>
                         <Label htmlFor="prepTime">Tempo Preparazione (minuti)</Label>
@@ -584,19 +590,22 @@ export function AdminPanel() {
                         
                         <div className="mt-3">
                           <Label htmlFor="departmentId">Reparto</Label>
-                          <Select 
-                            value={itemForm.watch('departmentId')} 
-                            onValueChange={(value) => itemForm.setValue('departmentId', value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleziona reparto" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {departments.map(department => (
-                                <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Controller
+                            name="departmentId"
+                            control={itemForm.control}
+                            render={({ field }) => (
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleziona reparto" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {departments.map(department => (
+                                    <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
                         </div>
                       </div>
                       
