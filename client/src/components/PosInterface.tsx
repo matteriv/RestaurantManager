@@ -185,7 +185,7 @@ export function PosInterface() {
       // Adding item from menu to order
       const draggedItem = menuItems.find(item => item.id === result.draggableId);
       if (draggedItem) {
-        addToOrder(draggedItem);
+        addItemToOrder(draggedItem);
       }
     } else if (result.source.droppableId === 'order-items' && result.destination.droppableId === 'order-items') {
       // Reordering items within the order
@@ -294,7 +294,7 @@ export function PosInterface() {
                   size="lg"
                   onClick={() => setSelectedCategory(category.id)}
                   data-testid={`category-tab-${category.id}`}
-                  className="flex flex-col items-center space-y-1 px-6 py-4 h-20 min-w-24"
+                  className="flex flex-col items-center space-y-1 px-4 py-3 h-16 min-w-20 text-center"
                 >
                   <IconComponent className="w-6 h-6" />
                   <span className="text-xs font-medium">{category.name}</span>
@@ -310,7 +310,7 @@ export function PosInterface() {
             <div 
               {...provided.droppableProps}
               ref={provided.innerRef}
-              className="p-4 grid grid-cols-2 gap-6 h-full overflow-y-auto"
+              className="p-3 grid grid-cols-3 gap-3 h-full overflow-y-auto"
             >
           {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
@@ -318,21 +318,21 @@ export function PosInterface() {
             const hasStock = item.trackInventory && (item.currentStock || 0) > (item.minStock || 0);
             
             return (
-              <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={isOutOfStock}>
+              <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={!!isOutOfStock}>
                 {(provided, snapshot) => (
                   <Card 
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     className={`
-                      transition-all relative h-32 cursor-pointer
+                      transition-all relative h-28 cursor-pointer
                       ${isOutOfStock 
                         ? 'opacity-50 cursor-not-allowed bg-gray-50' 
                         : 'hover:shadow-lg hover:scale-105'
                       }
                       ${snapshot.isDragging ? 'shadow-2xl rotate-6' : ''}
                     `}
-                    onClick={() => !isOutOfStock && addToOrder(item)}
+                    onClick={() => !isOutOfStock && addItemToOrder(item)}
                     data-testid={`menu-item-${item.id}`}
                   >
                 <CardContent className="p-4">
@@ -452,8 +452,19 @@ export function PosInterface() {
                   snapshot.isDraggingOver ? 'border-primary bg-primary/5' : 'border-transparent'
                 }`}
               >
-            {orderItems.map((item) => (
-              <Card key={item.tempId} className="bg-accent/50" data-testid={`order-item-${item.tempId}`}>
+            {orderItems.map((item, index) => (
+              <Draggable key={item.tempId} draggableId={item.tempId} index={index}>
+                {(provided, snapshot) => (
+                  <Card 
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    key={item.tempId} 
+                    className={`bg-accent/50 ${snapshot.isDragging ? 'shadow-lg rotate-2' : ''}`} 
+                    data-testid={`order-item-${item.tempId}`}
+                  >
+                    <div {...provided.dragHandleProps} className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing">
+                      <GripVertical className="w-4 h-4 text-muted-foreground" />
+                    </div>
                 <CardContent className="p-3">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-medium text-sm">{item.menuItem.name}</h4>
@@ -502,6 +513,8 @@ export function PosInterface() {
                   )}
                 </CardContent>
               </Card>
+                )}
+              </Draggable>
             ))}
             {orderItems.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
