@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit } from 'lucide-react';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import type { MenuItem, MenuCategory, Table, OrderLine, InsertOrderLine } from '@shared/schema';
 
 interface OrderItem extends InsertOrderLine {
@@ -74,6 +75,7 @@ export function PosInterface() {
         description: "The order has been successfully sent to the kitchen.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
     },
     onError: (error) => {
       toast({
@@ -158,6 +160,42 @@ export function PosInterface() {
     setOrderItems(items => items.filter(item => item.tempId !== tempId));
   };
 
+  // Get category icon
+  const getCategoryIcon = (categoryName: string) => {
+    const name = categoryName.toLowerCase();
+    if (name.includes('drink') || name.includes('beverage') || name.includes('coffee') || name.includes('caffè')) return Coffee;
+    if (name.includes('main') || name.includes('principal') || name.includes('primi') || name.includes('secondi')) return Utensils;
+    if (name.includes('wine') || name.includes('vino') || name.includes('alcohol')) return Wine;
+    if (name.includes('dessert') || name.includes('dolci') || name.includes('sweet')) return Dessert;
+    if (name.includes('appetizer') || name.includes('antipasti') || name.includes('starter')) return ChefHat;
+    if (name.includes('fish') || name.includes('pesce') || name.includes('seafood')) return Fish;
+    if (name.includes('pizza')) return Pizza;
+    if (name.includes('salad') || name.includes('insalata')) return Salad;
+    if (name.includes('soup') || name.includes('zuppa')) return Soup;
+    if (name.includes('meat') || name.includes('carne') || name.includes('beef')) return Beef;
+    if (name.includes('pasta')) return Package;
+    return Utensils;
+  };
+
+  // Handle drag end for adding items to order
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) return;
+
+    if (result.source.droppableId === 'menu-items' && result.destination.droppableId === 'order-items') {
+      // Adding item from menu to order
+      const draggedItem = menuItems.find(item => item.id === result.draggableId);
+      if (draggedItem) {
+        addToOrder(draggedItem);
+      }
+    } else if (result.source.droppableId === 'order-items' && result.destination.droppableId === 'order-items') {
+      // Reordering items within the order
+      const items = Array.from(orderItems);
+      const [reorderedItem] = items.splice(result.source.index, 1);
+      items.splice(result.destination.index, 0, reorderedItem);
+      setOrderItems(items);
+    }
+  };
+
   const calculateSubtotal = () => {
     return orderItems.reduce((sum, item) => sum + Number(item.totalPrice), 0);
   };
@@ -213,7 +251,8 @@ export function PosInterface() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <div className="flex h-screen bg-background">
       {/* Left Panel - Menu */}
       <div className="w-2/3 bg-card border-r border-border">
         {/* Daily Sales Summary */}
@@ -246,40 +285,56 @@ export function PosInterface() {
         {/* Category Tabs */}
         <div className="border-b border-border bg-muted/30">
           <div className="flex space-x-1 p-2 overflow-x-auto">
-            {categories.map((category) => (
-              <Button
-                key={category.id}
-                variant={selectedCategory === category.id ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setSelectedCategory(category.id)}
-                data-testid={`category-tab-${category.id}`}
-              >
-                {category.name}
-              </Button>
-            ))}
+            {categories.map((category) => {
+              const IconComponent = getCategoryIcon(category.name);
+              return (
+                <Button
+                  key={category.id}
+                  variant={selectedCategory === category.id ? 'default' : 'ghost'}
+                  size="lg"
+                  onClick={() => setSelectedCategory(category.id)}
+                  data-testid={`category-tab-${category.id}`}
+                  className="flex flex-col items-center space-y-1 px-6 py-4 h-20 min-w-24"
+                >
+                  <IconComponent className="w-6 h-6" />
+                  <span className="text-xs font-medium">{category.name}</span>
+                </Button>
+              );
+            })}
           </div>
         </div>
 
         {/* Menu Items Grid */}
-        <div className="p-4 grid grid-cols-3 gap-4 h-full overflow-y-auto">
-          {menuItems.map((item) => {
+        <Droppable droppableId="menu-items" isDropDisabled={true}>
+          {(provided) => (
+            <div 
+              {...provided.droppableProps}
+              ref={provided.innerRef}
+              className="p-4 grid grid-cols-2 gap-6 h-full overflow-y-auto"
+            >
+          {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
             const isLowStock = item.trackInventory && (item.currentStock || 0) > 0 && (item.currentStock || 0) <= (item.minStock || 0);
             const hasStock = item.trackInventory && (item.currentStock || 0) > (item.minStock || 0);
             
             return (
-              <Card 
-                key={item.id}
-                className={`
-                  transition-shadow relative
-                  ${isOutOfStock 
-                    ? 'opacity-50 cursor-not-allowed bg-gray-50' 
-                    : 'cursor-pointer hover:shadow-md'
-                  }
-                `}
-                onClick={() => !isOutOfStock && addItemToOrder(item)}
-                data-testid={`menu-item-${item.id}`}
-              >
+              <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={isOutOfStock}>
+                {(provided, snapshot) => (
+                  <Card 
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                    className={`
+                      transition-all relative h-32 cursor-pointer
+                      ${isOutOfStock 
+                        ? 'opacity-50 cursor-not-allowed bg-gray-50' 
+                        : 'hover:shadow-lg hover:scale-105'
+                      }
+                      ${snapshot.isDragging ? 'shadow-2xl rotate-6' : ''}
+                    `}
+                    onClick={() => !isOutOfStock && addToOrder(item)}
+                    data-testid={`menu-item-${item.id}`}
+                  >
                 <CardContent className="p-4">
                   <div className="text-left">
                     {/* Stock indicator badge */}
@@ -331,9 +386,14 @@ export function PosInterface() {
                   </div>
                 </CardContent>
               </Card>
+                )}
+              </Draggable>
             );
           })}
-        </div>
+          {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
       </div>
 
       {/* Right Panel - Order */}
@@ -383,7 +443,15 @@ export function PosInterface() {
 
         {/* Order Items */}
         <div className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-3">
+          <Droppable droppableId="order-items">
+            {(provided, snapshot) => (
+              <div 
+                {...provided.droppableProps}
+                ref={provided.innerRef}
+                className={`space-y-3 min-h-32 p-2 rounded-lg border-2 border-dashed transition-colors ${
+                  snapshot.isDraggingOver ? 'border-primary bg-primary/5' : 'border-transparent'
+                }`}
+              >
             {orderItems.map((item) => (
               <Card key={item.tempId} className="bg-accent/50" data-testid={`order-item-${item.tempId}`}>
                 <CardContent className="p-3">
@@ -435,7 +503,16 @@ export function PosInterface() {
                 </CardContent>
               </Card>
             ))}
-          </div>
+            {orderItems.length === 0 && (
+              <div className="text-center text-muted-foreground py-8">
+                <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Trascina qui i prodotti o clicca per aggiungere all'ordine</p>
+              </div>
+            )}
+            {provided.placeholder}
+              </div>
+            )}
+          </Droppable>
         </div>
 
         {/* Order Summary & Actions */}
@@ -508,5 +585,6 @@ export function PosInterface() {
         </div>
       </div>
     </div>
+    </DragDropContext>
   );
 }

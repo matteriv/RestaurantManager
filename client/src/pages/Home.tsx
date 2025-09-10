@@ -9,8 +9,6 @@ import {
   ChefHat, 
   Settings, 
   LogOut, 
-  Smartphone, 
-  Users,
   ExternalLink,
   Copy
 } from 'lucide-react';
@@ -40,15 +38,6 @@ export default function Home() {
       recommended: 'Large Screen',
     },
     {
-      id: 'waiter',
-      name: 'Waiter Interface',
-      description: 'Mobile interface for waiters and order management',
-      url: '/waiter',
-      icon: Smartphone,
-      color: 'bg-green-500 text-white',
-      recommended: 'Mobile/Smartphone',
-    },
-    {
       id: 'customer',
       name: 'Customer Monitor',
       description: 'Public display showing order status',
@@ -56,15 +45,6 @@ export default function Home() {
       icon: Monitor,
       color: 'bg-purple-500 text-white',
       recommended: 'Public Display',
-    },
-    {
-      id: 'queue',
-      name: 'Queue Management',
-      description: 'Manage customer waiting list and table assignments',
-      url: '/queue',
-      icon: Users,
-      color: 'bg-pink-500 text-white',
-      recommended: 'Host Station',
     },
     {
       id: 'admin',
