@@ -29,18 +29,24 @@ export function PosInterface() {
   const queryClient = useQueryClient();
   const { lastMessage } = useWebSocketContext();
 
-  // Fetch data
+  // Fetch data with auto-refresh
   const { data: categories = [] } = useQuery<MenuCategory[]>({
     queryKey: ['/api/menu/categories'],
+    refetchInterval: 60000, // Refresh every minute
   });
 
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
     queryKey: ['/api/menu/items', selectedCategory],
-    enabled: !!selectedCategory,
+    queryFn: async () => {
+      const response = await apiRequest('GET', selectedCategory ? `/api/menu/items?categoryId=${selectedCategory}` : '/api/menu/items');
+      return response.json();
+    },
+    refetchInterval: 15000, // Refresh every 15 seconds for products
   });
 
   const { data: tables = [] } = useQuery<Table[]>({
     queryKey: ['/api/tables'],
+    refetchInterval: 10000, // Refresh every 10 seconds for table status
   });
 
   // Daily sales data
