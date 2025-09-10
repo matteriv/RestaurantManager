@@ -90,7 +90,7 @@ export default function Home() {
               {/* User Menu */}
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-muted-foreground">
-                  Welcome, {user?.firstName || 'User'}
+                  Welcome, {(user as any)?.firstName || 'User'}
                 </span>
                 <Button
                   variant="ghost"
