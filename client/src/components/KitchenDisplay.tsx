@@ -58,22 +58,10 @@ export function KitchenDisplay() {
     });
   });
 
-  // Group orders by line item status instead of order status
-  const getOrdersWithLineStatus = (status: string) => {
-    return filteredOrders
-      .map(order => ({
-        ...order,
-        orderLines: order.orderLines.filter(line => 
-          (selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation) &&
-          (line.status || 'new') === status
-        )
-      }))
-      .filter(order => order.orderLines.length > 0);
-  };
-
-  const newOrders = getOrdersWithLineStatus('new');
-  const preparingOrders = getOrdersWithLineStatus('preparing');
-  const readyOrders = getOrdersWithLineStatus('ready');
+  // Separate orders by status (original logic restored)
+  const newOrders = filteredOrders.filter(order => order.status === 'new');
+  const preparingOrders = filteredOrders.filter(order => order.status === 'preparing');
+  const readyOrders = filteredOrders.filter(order => order.status === 'ready');
 
   // Update order line status mutation
   const updateOrderLineMutation = useMutation({
@@ -324,7 +312,7 @@ export function KitchenDisplay() {
                       </CardTitle>
                       <div className="flex items-center space-x-1">
                         <Badge className="bg-blue-500 text-white text-xs px-1">
-                          {order.orderLines.length} nuovi
+                          {order.orderLines.filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation).length} nuovi
                         </Badge>
                         <Badge className="bg-white/10 text-white/80 text-xs px-1">
                           {getElapsedTime(order)}
@@ -333,7 +321,9 @@ export function KitchenDisplay() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {order.orderLines.map(line => (
+                    {order.orderLines
+                      .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
+                      .map(line => (
                         <OrderLineItem 
                           key={line.id}
                           orderLine={line}
@@ -400,7 +390,7 @@ export function KitchenDisplay() {
                       <div className="flex items-center space-x-1">
                         <Badge className="bg-yellow-500 text-white text-xs px-1">
                           <Timer className="w-2.5 h-2.5 mr-0.5" />
-                          {order.orderLines.length}
+                          {order.orderLines.filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation).length}
                         </Badge>
                         <Badge className="bg-white/10 text-white/80 text-xs px-1">
                           {getElapsedTime(order)}
@@ -409,7 +399,9 @@ export function KitchenDisplay() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {order.orderLines.map(line => (
+                    {order.orderLines
+                      .filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation)
+                      .map(line => (
                         <OrderLineItem 
                           key={line.id}
                           orderLine={line}
@@ -476,7 +468,7 @@ export function KitchenDisplay() {
                                   <div className="flex items-center space-x-1">
                                     <Badge className="bg-green-500 text-white text-xs px-1">
                                       <Check className="w-2.5 h-2.5 mr-0.5" />
-                                      {order.orderLines.length}
+                                      {order.orderLines.filter(line => selectedStation === 'all' || line.menuItem.station?.toLowerCase() === selectedStation).length}
                                     </Badge>
                                     <Badge className="bg-white/10 text-white/80 text-xs px-1">
                                       {getElapsedTime(order)}
