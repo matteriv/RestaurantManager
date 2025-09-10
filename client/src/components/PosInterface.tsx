@@ -84,10 +84,21 @@ export function PosInterface() {
   // Payment mutation
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      const response = await apiRequest('POST', '/api/payments/process', paymentData);
-      return response.json();
+      console.log('🔄 Payment mutation starting with data:', paymentData);
+      try {
+        const response = await apiRequest('POST', '/api/payments/process', paymentData);
+        console.log('📡 Payment response received:', response.status);
+        const result = await response.json();
+        console.log('📋 Payment result:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ Payment mutation error:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
+      console.log('🎉 Payment success callback executing!');
+      
       // Capture receipt data before clearing UI state
       const receiptData = {
         items: orderItems,
@@ -97,10 +108,15 @@ export function PosInterface() {
         total: calculateTotal()
       };
       
+      console.log('📊 Receipt data captured:', receiptData);
+      console.log('🗑️ Clearing UI state...');
+      
       // Clear UI state after capturing receipt data
       setOrderItems([]);
       setOrderNotes('');
       setShowPaymentDialog(false);
+      
+      console.log('✅ UI state cleared - dialog closed, items cleared');
       
       toast({
         title: "Payment processed",
@@ -112,10 +128,12 @@ export function PosInterface() {
       
       // Print receipt with captured data to avoid using cleared state
       setTimeout(() => {
+        console.log('🖨️ Printing receipt...');
         printReceipt(receiptData);
       }, 100);
     },
     onError: (error) => {
+      console.error('💥 Payment onError callback:', error);
       toast({
         title: "Error",
         description: "Failed to process payment.",
@@ -244,6 +262,9 @@ export function PosInterface() {
   };
 
   const processPayment = () => {
+    console.log('🚀 processPayment function called!');
+    console.log('📋 Current orderItems:', orderItems.length, orderItems);
+    
     const paymentData = {
       orderItems: orderItems.map(item => ({
         menuItemId: item.menuItemId,
@@ -257,7 +278,9 @@ export function PosInterface() {
       receiptMethod: 'print',
     };
 
+    console.log('💳 Calling paymentMutation.mutate with:', paymentData);
     paymentMutation.mutate(paymentData);
+    console.log('✅ paymentMutation.mutate called');
   };
 
   const printReceipt = (receiptData?: any) => {
@@ -382,7 +405,7 @@ export function PosInterface() {
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="flex h-screen bg-background">
       {/* Left Panel - Menu */}
-      <div className="w-2/3 bg-card border-r border-border">
+      <div className="w-3/4 bg-card border-r border-border">
         {/* Daily Sales Summary */}
         <div className="border-b border-border bg-blue-50 px-4 py-2">
           <div className="flex items-center justify-between">
@@ -525,7 +548,7 @@ export function PosInterface() {
       </div>
 
       {/* Right Panel - Order */}
-      <div className="w-1/3 bg-card flex flex-col">
+      <div className="w-1/4 bg-card flex flex-col">
         {/* Current Order Header */}
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
