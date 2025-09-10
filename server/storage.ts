@@ -86,6 +86,12 @@ export interface IStorage {
   // Analytics
   getDailySales(date: Date): Promise<{ total: number; orderCount: number; avgOrderValue: number }>;
   getTopDishes(date: Date, limit?: number): Promise<{ menuItem: MenuItem; orderCount: number; revenue: number }[]>;
+  getKitchenPerformance(date: Date): Promise<{
+    avgPrepTime: number;
+    onTimeDelivery: number;
+    totalItemsPrepared: number;
+    stationPerformance: { station: string; avgTime: number; onTime: number; total: number }[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -534,6 +540,76 @@ export class DatabaseStorage implements IStorage {
       orderCount: Number(row.orderCount) || 0,
       revenue: Number(row.revenue) || 0,
     }));
+  }
+
+  async getKitchenPerformance(date: Date): Promise<{
+    avgPrepTime: number;
+    onTimeDelivery: number;
+    totalItemsPrepared: number;
+    stationPerformance: { station: string; avgTime: number; onTime: number; total: number }[];
+  }> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const results = await db
+      .select({
+        station: menuItems.station,
+        expectedTime: menuItems.prepTimeMinutes,
+        actualTime: sql<number>`EXTRACT(EPOCH FROM (${orderLines.completedAt} - ${orderLines.startedAt})) / 60`,
+        quantity: orderLines.quantity,
+      })
+      .from(orderLines)
+      .innerJoin(orders, eq(orderLines.orderId, orders.id))
+      .innerJoin(menuItems, eq(orderLines.menuItemId, menuItems.id))
+      .where(and(
+        sql`${orders.createdAt} >= ${startOfDay}`,
+        sql`${orders.createdAt} <= ${endOfDay}`,
+        sql`${orderLines.startedAt} IS NOT NULL`,
+        sql`${orderLines.completedAt} IS NOT NULL`
+      ));
+
+    const totalItems = results.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    const avgPrepTime = results.length > 0 ? results.reduce((sum, item) => sum + (item.actualTime || 0), 0) / results.length : 0;
+    
+    const onTimeItems = results.filter(item => 
+      !item.expectedTime || (item.actualTime || 0) <= item.expectedTime
+    ).reduce((sum, item) => sum + (item.quantity || 1), 0);
+    
+    const onTimeDelivery = totalItems > 0 ? (onTimeItems / totalItems) * 100 : 0;
+
+    // Station performance
+    const stationMap = new Map<string, { times: number[]; quantities: number[]; onTime: number; total: number }>();
+    
+    results.forEach(item => {
+      const station = item.station || 'Sconosciuta';
+      if (!stationMap.has(station)) {
+        stationMap.set(station, { times: [], quantities: [], onTime: 0, total: 0 });
+      }
+      const stationData = stationMap.get(station)!;
+      stationData.times.push(item.actualTime || 0);
+      stationData.quantities.push(item.quantity || 1);
+      stationData.total += item.quantity || 1;
+      
+      if (!item.expectedTime || (item.actualTime || 0) <= item.expectedTime) {
+        stationData.onTime += item.quantity || 1;
+      }
+    });
+
+    const stationPerformance = Array.from(stationMap.entries()).map(([station, data]) => ({
+      station,
+      avgTime: data.times.length > 0 ? data.times.reduce((a, b) => a + b, 0) / data.times.length : 0,
+      onTime: data.total > 0 ? (data.onTime / data.total) * 100 : 0,
+      total: data.total,
+    }));
+
+    return {
+      avgPrepTime,
+      onTimeDelivery,
+      totalItemsPrepared: totalItems,
+      stationPerformance,
+    };
   }
 }
 

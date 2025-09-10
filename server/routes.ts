@@ -489,6 +489,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/analytics/kitchen-performance', async (req, res) => {
+    try {
+      const date = req.query.date ? new Date(req.query.date as string) : new Date();
+      const performance = await storage.getKitchenPerformance(date);
+      res.json(performance);
+    } catch (error) {
+      console.error("Error fetching kitchen performance:", error);
+      res.status(500).json({ message: "Failed to fetch kitchen performance" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket setup
