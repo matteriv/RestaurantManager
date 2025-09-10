@@ -118,6 +118,14 @@ export function AdminPanel() {
         description: 'Articolo aggiornato con successo',
       });
     },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
+        description: 'Errore durante l\'aggiornamento dell\'articolo',
+        variant: 'destructive',
+      });
+      console.error('Update error:', error);
+    },
   });
 
   const deleteItemMutation = useMutation({
@@ -236,12 +244,17 @@ export function AdminPanel() {
   ];
 
   const onSubmitItem = (data: any) => {
+    console.log('Form data:', data);
+    console.log('Editing item:', editingItem);
+    
     const itemData = {
       ...data,
       price: data.price.toString(),
       prepTimeMinutes: parseInt(data.prepTimeMinutes) || 0,
       isAvailable: true,
     };
+
+    console.log('Final item data:', itemData);
 
     if (editingItem) {
       updateItemMutation.mutate({ id: editingItem.id, data: itemData });
@@ -289,6 +302,9 @@ export function AdminPanel() {
 
   const openEditItem = (item: MenuItem) => {
     setEditingItem(item);
+    // Reset form first
+    itemForm.reset();
+    // Set all values
     itemForm.setValue('name', item.name);
     itemForm.setValue('description', item.description || '');
     itemForm.setValue('price', parseFloat(item.price).toFixed(2));
@@ -502,7 +518,13 @@ export function AdminPanel() {
                   </DialogContent>
                 </Dialog>
 
-                <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
+                <Dialog open={showItemDialog} onOpenChange={(open) => {
+                  setShowItemDialog(open);
+                  if (!open) {
+                    setEditingItem(null);
+                    itemForm.reset();
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button>
                       <Plus className="w-4 h-4 mr-2" />
@@ -531,6 +553,7 @@ export function AdminPanel() {
                         <Controller
                           name="categoryId"
                           control={itemForm.control}
+                          defaultValue=""
                           render={({ field }) => (
                             <Select value={field.value} onValueChange={field.onChange}>
                               <SelectTrigger>
@@ -550,6 +573,7 @@ export function AdminPanel() {
                         <Controller
                           name="station"
                           control={itemForm.control}
+                          defaultValue=""
                           render={({ field }) => (
                             <Select value={field.value} onValueChange={field.onChange}>
                               <SelectTrigger>
@@ -593,6 +617,7 @@ export function AdminPanel() {
                           <Controller
                             name="departmentId"
                             control={itemForm.control}
+                            defaultValue=""
                             render={({ field }) => (
                               <Select value={field.value} onValueChange={field.onChange}>
                                 <SelectTrigger>
