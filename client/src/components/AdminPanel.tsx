@@ -244,17 +244,12 @@ export function AdminPanel() {
   ];
 
   const onSubmitItem = (data: any) => {
-    console.log('Form data:', data);
-    console.log('Editing item:', editingItem);
-    
     const itemData = {
       ...data,
       price: data.price.toString(),
       prepTimeMinutes: parseInt(data.prepTimeMinutes) || 0,
       isAvailable: true,
     };
-
-    console.log('Final item data:', itemData);
 
     if (editingItem) {
       updateItemMutation.mutate({ id: editingItem.id, data: itemData });
