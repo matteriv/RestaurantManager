@@ -259,24 +259,24 @@ export function CustomerMonitor() {
                   return (
                     <Card 
                       key={order.id}
-                      className="bg-gradient-to-br from-green-600/40 to-emerald-600/40 backdrop-blur-sm border-green-200/80 shadow-2xl transform hover:scale-102 transition-transform animate-pulse ring-4 ring-yellow-300/70 border-2"
+                      className="bg-gradient-to-br from-green-700/80 to-emerald-700/80 backdrop-blur-sm border-yellow-400/90 shadow-2xl transform hover:scale-102 transition-transform animate-pulse ring-4 ring-yellow-400/90 border-2"
                       data-testid={`ready-order-${order.id}`}
                     >
                       <CardContent className="p-3">
                         <div className="text-center mb-2">
-                          <div className="text-4xl font-bold text-white mb-1 drop-shadow-lg" data-testid={`ready-order-number-${order.id}`}>
+                          <div className="text-4xl font-bold text-yellow-100 mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" data-testid={`ready-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-white/90 text-xs font-medium">{t('customer.order_number')}</div>
+                          <div className="text-yellow-200/90 text-xs font-medium drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{t('customer.order_number')}</div>
                         </div>
                         
                         <div className="text-center space-y-2">
-                          <Bell className="w-10 h-10 mx-auto text-yellow-200 animate-bounce drop-shadow-lg" />
-                          <div className="text-lg font-bold text-white drop-shadow-lg" data-testid={`ready-status-${order.id}`}>
+                          <Bell className="w-10 h-10 mx-auto text-yellow-300 animate-bounce drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+                          <div className="text-lg font-bold text-yellow-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" data-testid={`ready-status-${order.id}`}>
                             {t('customer.order_ready')}
                           </div>
-                          <div className="text-yellow-100 text-sm font-bold drop-shadow-md">{t('customer.collect')}</div>
-                          <div className="text-xs text-white/80">
+                          <div className="text-yellow-200 text-sm font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{t('customer.collect')}</div>
+                          <div className="text-xs text-yellow-200/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                             Pronto da {elapsedTime}
                           </div>
                         </div>
@@ -298,14 +298,14 @@ export function CustomerMonitor() {
                     {otherReadyOrders.map((order) => (
                       <Card 
                         key={order.id}
-                        className="bg-green-500/20 backdrop-blur-sm border-green-300/40 hover:bg-green-500/30 transition-colors animate-pulse"
+                        className="bg-green-700/70 backdrop-blur-sm border-yellow-400/70 hover:bg-green-700/80 transition-colors animate-pulse ring-2 ring-yellow-400/50"
                         data-testid={`other-ready-order-${order.id}`}
                       >
                         <CardContent className="p-2 text-center">
-                          <div className="text-2xl font-bold text-white mb-1 drop-shadow-lg" data-testid={`other-ready-order-number-${order.id}`}>
+                          <div className="text-2xl font-bold text-yellow-100 mb-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" data-testid={`other-ready-order-number-${order.id}`}>
                             {order.orderNumber}
                           </div>
-                          <div className="text-xs text-yellow-100 font-semibold">PRONTO</div>
+                          <div className="text-xs text-yellow-200 font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">PRONTO</div>
                         </CardContent>
                       </Card>
                     ))}
