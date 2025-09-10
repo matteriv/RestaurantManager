@@ -28,8 +28,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const host = window.location.hostname;
+      const port = window.location.port || (protocol === "wss:" ? "443" : "80");
+      const wsUrl = `${protocol}//${host}:${port}/ws`;
       
+      console.log('Connecting to WebSocket:', wsUrl);
       ws.current = new WebSocket(wsUrl);
 
       ws.current.onopen = () => {
@@ -48,15 +51,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         options.onConnect?.();
       };
 
-      ws.current.onmessage = (event) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-          setLastMessage(message);
-          options.onMessage?.(message);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
 
       ws.current.onclose = () => {
         console.log('WebSocket disconnected');
@@ -78,6 +72,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.current.onerror = (error) => {
         console.error('WebSocket error:', error);
         options.onError?.(error);
+      };
+
+      ws.current.onmessage = (event) => {
+        try {
+          const message: WebSocketMessage = JSON.parse(event.data);
+          setLastMessage(message);
+          options.onMessage?.(message);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
       };
 
     } catch (error) {
