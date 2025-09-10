@@ -64,8 +64,9 @@ export function DeliveryInterface() {
     confirmDeliveryMutation.mutate(orderId);
   };
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('it-IT', {
+  const formatTime = (date: Date | string) => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleTimeString('it-IT', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -152,7 +153,7 @@ export function DeliveryInterface() {
                         </CardTitle>
                         <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                           <Clock className="h-4 w-4" />
-                          <span>{formatTime(order.createdAt)}</span>
+                          <span>{order.createdAt ? formatTime(order.createdAt) : 'N/A'}</span>
                         </div>
                       </div>
                     </div>
