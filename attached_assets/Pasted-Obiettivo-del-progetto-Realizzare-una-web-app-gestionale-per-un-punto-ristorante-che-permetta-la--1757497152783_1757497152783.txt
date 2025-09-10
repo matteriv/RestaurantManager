@@ -1,0 +1,89 @@
+Obiettivo del progetto
+
+Realizzare una web app gestionale per un punto ristorante che permetta la gestione completa delle operazioni di sala e cucina, ottimizzi i tempi di servizio e fornisca reportistica operativa e commerciale. L’app deve garantire una gestione fluida degli ordini dal momento della presa al servizio e alla chiusura conto, con visibilità in tempo reale su schermi di cucina (KDS) e su monitor di cortesia per i clienti in sala.
+
+Ambito funzionale principale (MVP)
+
+Presa ordine al punto vendita (POS) con gestione di piatti, varianti/modificatori, note e possibilità di split-bill. Interfaccia ottimizzata per i device più usati per questa operazione.
+
+Planimetria tavoli con stato (libero/occupato/in chiusura) e possibilità di spostare ordini tra tavoli.
+
+Sistema ordini con stato a due livelli: stato dell’ordine complessivo e stato per singola linea/piatto (es. nuovo → in preparazione → pronto → servito → pagato).
+
+Monitor cucina (KDS) per la visualizzazione e gestione delle linee in preparazione, con timer, filtri per stazione e azioni rapide (start/pause/complete). Interfaccia pensata per monitor grandi e leggibilità a distanza.
+
+Monitor di cortesia in sala che mostra numero d’ordine, stato sintetico, ETA/progress bar e segnali sonori/visivi quando l’ordine è pronto; spazio configurabile per messaggi/promozioni.
+
+Funzionalità base di reportistica: vendite giornaliere, top piatti, performance per turno.
+
+Funzionalità offline per il terminale POS: operatività locale in assenza di connessione e sincronizzazione automatica al ripristino.
+
+Ruoli utente e controllo accessi (es. admin, manager, cameriere, cuoco, cassiere).
+
+Tracciatura (audit) delle operazioni sensibili (creazioni, annullamenti, rimborsi, modifiche menu).
+
+Funzionalità evolutive consigliate (post-MVP)
+
+KDS multi-stazione (es. forno, fritto, griglia) con filtraggio e assegnazione per stazione.
+
+Prioritizzazione intelligente delle linee (quick/slow) e notifiche automatiche per ritardi.
+
+Gestione inventario con decremento ingredienti per vendita e allarmi di riordino.
+
+Centralizzazione ordini da canali esterni (delivery/marketplace) e gestione conflitti.
+
+Loyalty e CRM per fidelizzazione clienti.
+
+Multi-sede con sincronizzazione e controllo centralizzato.
+
+API e webhooks per integrazioni con servizi esterni.
+
+Flussi operativi critici (sintesi)
+
+Creazione ordine: inserimento al POS → generazione ordine con numero progressivo → notifica a KDS e monitor di cortesia → visualizzazione conferma al POS.
+
+Lavorazione in cucina: KDS riceve linee, chef marca lo stato delle linee; quando tutte le linee di un ordine sono pronte, l’ordine viene segnato come pronto.
+
+Notifica cliente: monitor di cortesia evidenzia gli ordini pronti con segnale visivo/acustico; in caso di ritardo il messaggio viene aggiornato.
+
+Pagamento: chiusura conto, registrazione pagamento, emissione ricevuta e aggiornamento report vendite.
+
+Offline / Sync: operazioni locali memorizzate con timestamp → sincronizzazione automatica su ripristino rete → meccanismo di gestione delle collisioni e revisione manuale dove necessario.
+
+Requisiti non funzionali essenziali
+
+Responsive & ottimizzazione device-specifica: tutte le schermate devono essere responsive e ottimizzate in base al device più usato per la specifica operazione (es. POS per tablet touch, KDS per monitor a parete, monitor di cortesia per display fissi).
+
+Tempo reale: aggiornamenti in tempo reale tra POS, KDS e monitor di cortesia per garantire coerenza operativa.
+
+Affidabilità: continuità operativa anche in caso di interruzione temporanea della connessione.
+
+Usabilità: interfacce semplici e rapide per azioni frequenti; azioni rapide e conferme per operazioni critiche.
+
+Sicurezza e privacy: protezione delle comunicazioni, tracciatura delle azioni sensibili e conformità alle norme vigenti sulla protezione dei dati.
+
+Casi di accettazione principali
+
+Un ordine creato al POS appare sul KDS con le singole linee entro tempi operativi percepiti come immediati.
+
+La marcatura di una linea come “pronta” sul KDS aggiorna POS e monitor di cortesia.
+
+Il monitor di cortesia evidenzia l’ordine pronto e attiva segnale visivo/acustico.
+
+Chiusura di un ordine aggiornata come “pagato” appare nei report giornalieri.
+
+In caso di assenza di rete, il POS permette di creare ordini offline e li sincronizza correttamente al ripristino senza duplicati.
+
+Consegne attese dal team di sviluppo (in linguaggio naturale)
+
+Applicazione web operativa che implementi i flussi sopra descritti, accessibile via URL pubblico.
+
+Interfacce utente responsive e ottimizzate per i device principali usati nelle operazioni quotidiane.
+
+Funzionalità KDS e monitor di cortesia operative e configurabili.
+
+Meccanismo affidabile di funzionamento offline per i terminali POS e sincronizzazione al ripristino.
+
+Documentazione funzionale che descriva i flussi utente, la configurazione dei monitor e le operazioni amministrative (non è richiesta documentazione tecnica di codice).
+
+Test funzionali che dimostrino il rispetto dei casi di accettazione elencati.
