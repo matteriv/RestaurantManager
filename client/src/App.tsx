@@ -28,18 +28,40 @@ function Router() {
   }
 
   return (
-    <WebSocketProvider>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/pos" component={PosInterface} />
-        <Route path="/kitchen" component={KitchenDisplay} />
-        <Route path="/customer" component={CustomerMonitor} />
-        <Route path="/waiter" component={WaiterInterface} />
-        <Route path="/queue" component={QueueManagement} />
-        <Route path="/admin" component={AdminPanel} />
-        <Route component={NotFound} />
-      </Switch>
-    </WebSocketProvider>
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/pos">
+        <WebSocketProvider clientType="pos">
+          <PosInterface />
+        </WebSocketProvider>
+      </Route>
+      <Route path="/kitchen">
+        <WebSocketProvider clientType="kds">
+          <KitchenDisplay />
+        </WebSocketProvider>
+      </Route>
+      <Route path="/customer">
+        <WebSocketProvider clientType="customer">
+          <CustomerMonitor />
+        </WebSocketProvider>
+      </Route>
+      <Route path="/waiter">
+        <WebSocketProvider clientType="waiter">
+          <WaiterInterface />
+        </WebSocketProvider>
+      </Route>
+      <Route path="/queue">
+        <WebSocketProvider clientType="admin">
+          <QueueManagement />
+        </WebSocketProvider>
+      </Route>
+      <Route path="/admin">
+        <WebSocketProvider clientType="admin">
+          <AdminPanel />
+        </WebSocketProvider>
+      </Route>
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 

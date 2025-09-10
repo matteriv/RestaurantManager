@@ -192,7 +192,7 @@ export function WaiterInterface() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">
-                    Order #{order.id.slice(-8)}
+                    Order #{String(order.orderNumber).padStart(4, '0')}
                   </CardTitle>
                   <Badge className={getOrderStatusColor(order.status)}>
                     {order.status}
@@ -241,7 +241,7 @@ export function WaiterInterface() {
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
                       <DialogHeader>
-                        <DialogTitle>Order #{order.id.slice(-8)}</DialogTitle>
+                        <DialogTitle>Order #{String(order.orderNumber).padStart(4, '0')}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div>
