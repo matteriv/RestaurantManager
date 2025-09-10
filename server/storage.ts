@@ -102,13 +102,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMenuItems(categoryId?: string): Promise<MenuItem[]> {
-    const query = db.select().from(menuItems).where(eq(menuItems.isAvailable, true));
-    
     if (categoryId) {
-      return await query.where(and(eq(menuItems.isAvailable, true), eq(menuItems.categoryId, categoryId)));
+      return await db.select().from(menuItems).where(and(eq(menuItems.isAvailable, true), eq(menuItems.categoryId, categoryId)));
     }
     
-    return await query;
+    return await db.select().from(menuItems).where(eq(menuItems.isAvailable, true));
   }
 
   async createMenuItem(item: InsertMenuItem): Promise<MenuItem> {
@@ -371,8 +369,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Audit operations
-  async createAuditLog(auditLog: InsertAuditLog): Promise<AuditLog> {
-    const [newAuditLog] = await db.insert(auditLog).values(auditLog).returning();
+  async createAuditLog(auditLogData: InsertAuditLog): Promise<AuditLog> {
+    const [newAuditLog] = await db.insert(auditLog).values(auditLogData).returning();
     return newAuditLog;
   }
 
