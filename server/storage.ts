@@ -371,12 +371,27 @@ export class DatabaseStorage implements IStorage {
     return order;
   }
 
-  async createOrder(order: InsertOrder): Promise<Order> {
+  async createOrder(orderData: InsertOrder & { orderLines?: InsertOrderLine[] }): Promise<Order> {
     const orderNumber = await this.getNextOrderNumber();
+    
+    // Extract orderLines from the data and create order first
+    const { orderLines: orderLinesData, ...orderOnly } = orderData;
+    
     const [newOrder] = await db
       .insert(orders)
-      .values({ ...order, orderNumber })
+      .values({ ...orderOnly, orderNumber })
       .returning();
+
+    // Create order lines if provided
+    if (orderLinesData && orderLinesData.length > 0) {
+      const orderLinesToInsert = orderLinesData.map(line => ({
+        ...line,
+        orderId: newOrder.id,
+      }));
+      
+      await db.insert(orderLines).values(orderLinesToInsert);
+    }
+
     return newOrder;
   }
 
