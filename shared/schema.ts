@@ -38,6 +38,26 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Departments (Reparti)
+export const departments = pgTable("departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(),
+  code: varchar("code").notNull().unique(), // e.g., 'cucina', 'bar', 'pizza'
+  isMain: boolean("is_main").default(false),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// System settings
+export const settings = pgTable("settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key").notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Menu categories
 export const menuCategories = pgTable("menu_categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -52,13 +72,19 @@ export const menuCategories = pgTable("menu_categories", {
 export const menuItems = pgTable("menu_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   categoryId: varchar("category_id").references(() => menuCategories.id),
+  departmentId: varchar("department_id").references(() => departments.id),
   name: varchar("name").notNull(),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   prepTimeMinutes: integer("prep_time_minutes").default(0),
   isAvailable: boolean("is_available").default(true),
   allergens: text("allergens"), // JSON string array
-  station: varchar("station"), // grill, fryer, cold_station, etc.
+  station: varchar("station"), // grill, fryer, cold_station, etc. (legacy field)
+  // Inventory management fields
+  currentStock: integer("current_stock").default(0),
+  minStock: integer("min_stock").default(0),
+  maxStock: integer("max_stock").default(0),
+  trackInventory: boolean("track_inventory").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -89,6 +115,7 @@ export const orders = pgTable("orders", {
   orderNumber: integer("order_number").notNull().unique(),
   tableId: varchar("table_id").references(() => tables.id),
   waiterId: varchar("waiter_id").references(() => users.id),
+  posTerminalId: varchar("pos_terminal_id"), // Identify which POS terminal created the order
   status: orderStatusEnum("status").notNull().default('new'),
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull().default('0'),
   tax: decimal("tax", { precision: 10, scale: 2 }).notNull().default('0'),
@@ -145,6 +172,10 @@ export const usersRelations = relations(users, ({ many }) => ({
   auditLogs: many(auditLog),
 }));
 
+export const departmentsRelations = relations(departments, ({ many }) => ({
+  menuItems: many(menuItems),
+}));
+
 export const menuCategoriesRelations = relations(menuCategories, ({ many }) => ({
   menuItems: many(menuItems),
 }));
@@ -153,6 +184,10 @@ export const menuItemsRelations = relations(menuItems, ({ one, many }) => ({
   category: one(menuCategories, {
     fields: [menuItems.categoryId],
     references: [menuCategories.id],
+  }),
+  department: one(departments, {
+    fields: [menuItems.departmentId],
+    references: [departments.id],
   }),
   orderLines: many(orderLines),
 }));
@@ -212,6 +247,16 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
 });
 
+export const insertDepartmentSchema = createInsertSchema(departments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSettingSchema = createInsertSchema(settings).omit({
+  id: true,
+  updatedAt: true,
+});
+
 export const insertMenuCategorySchema = createInsertSchema(menuCategories).omit({
   id: true,
   createdAt: true,
@@ -251,6 +296,10 @@ export const insertAuditLogSchema = createInsertSchema(auditLog).omit({
 // Types
 export type UpsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type Department = typeof departments.$inferSelect;
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+export type Setting = typeof settings.$inferSelect;
+export type InsertSetting = z.infer<typeof insertSettingSchema>;
 export type MenuCategory = typeof menuCategories.$inferSelect;
 export type InsertMenuCategory = z.infer<typeof insertMenuCategorySchema>;
 export type MenuItem = typeof menuItems.$inferSelect;
