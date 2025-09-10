@@ -154,3 +154,26 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return;
   }
 };
+
+// Admin role check middleware
+export const isAdmin: RequestHandler = async (req, res, next) => {
+  try {
+    const user = req.user as any;
+    
+    if (!req.isAuthenticated() || !user.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Get user from database to check role
+    const dbUser = await storage.getUser(user.claims.sub);
+    
+    if (!dbUser || dbUser.role !== 'admin') {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Error checking admin role:', error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

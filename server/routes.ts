@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema } from "@shared/schema";
+import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema } from "@shared/schema";
 import { z } from "zod";
 
 interface WebSocketClient extends WebSocket {
@@ -248,8 +248,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Update inventory for tracked items
-      if (order.orderLines && order.orderLines.length > 0) {
-        for (const orderLine of order.orderLines) {
+      if (orderData.orderLines && orderData.orderLines.length > 0) {
+        for (const orderLine of orderData.orderLines) {
           try {
             // Get menu item details
             const menuItem = await storage.getMenuItem(orderLine.menuItemId);
@@ -302,8 +302,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const order = await storage.updateOrderStatus(id, status);
 
       // Handle inventory restoration when order is cancelled
-      if (status === 'cancelled' && oldOrder?.status !== 'cancelled' && order.orderLines && order.orderLines.length > 0) {
-        for (const orderLine of order.orderLines) {
+      if (status === 'cancelled' && oldOrder?.status !== 'cancelled' && oldOrder?.orderLines && oldOrder.orderLines.length > 0) {
+        for (const orderLine of oldOrder.orderLines) {
           try {
             // Get menu item details
             const menuItem = await storage.getMenuItem(orderLine.menuItemId);
@@ -497,6 +497,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching kitchen performance:", error);
       res.status(500).json({ message: "Failed to fetch kitchen performance" });
+    }
+  });
+
+  // Admin operations
+  app.post('/api/admin/reset-system', isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Log the critical operation first
+      await storage.createAuditLog({
+        userId,
+        action: 'system_reset',
+        entityType: 'system',
+        entityId: 'system',
+        newValues: { resetAt: new Date() },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      });
+
+      // Perform system reset
+      const result = await storage.resetSystem();
+      
+      // Broadcast system reset to all connected clients
+      broadcastMessage('system-reset', { resetBy: userId, timestamp: new Date() });
+      
+      res.json({ 
+        message: 'System reset completed successfully',
+        ...result 
+      });
+    } catch (error) {
+      console.error("Error resetting system:", error);
+      res.status(500).json({ message: "Failed to reset system" });
     }
   });
 
