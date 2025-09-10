@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, TableCellsSplit, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart, Printer } from 'lucide-react';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart, Printer } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import type { MenuItem, MenuCategory, Table, OrderLine, InsertOrderLine } from '@shared/schema';
+import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine } from '@shared/schema';
 
 interface OrderItem extends InsertOrderLine {
   tempId: string;
@@ -20,10 +20,8 @@ interface OrderItem extends InsertOrderLine {
 
 export function PosInterface() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
-  const [showTableDialog, setShowTableDialog] = useState(false);
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [receiptMethod, setReceiptMethod] = useState<'print'>('print');
@@ -47,10 +45,6 @@ export function PosInterface() {
     refetchInterval: 15000, // Refresh every 15 seconds for products
   });
 
-  const { data: tables = [] } = useQuery<Table[]>({
-    queryKey: ['/api/tables'],
-    refetchInterval: 10000, // Refresh every 10 seconds for table status
-  });
 
   // Daily sales data
   const { data: dailySales = { total: 0, orderCount: 0, avgOrderValue: 0 } } = useQuery({
@@ -71,7 +65,6 @@ export function PosInterface() {
     onSuccess: () => {
       setOrderItems([]);
       setOrderNotes('');
-      setSelectedTable(null);
       toast({
         title: "Order sent to kitchen",
         description: "The order has been successfully sent to the kitchen.",
@@ -97,7 +90,6 @@ export function PosInterface() {
     onSuccess: () => {
       // Capture receipt data before clearing UI state
       const receiptData = {
-        table: selectedTable,
         items: orderItems,
         notes: orderNotes,
         subtotal: calculateSubtotal(),
@@ -108,7 +100,6 @@ export function PosInterface() {
       // Clear UI state after capturing receipt data
       setOrderItems([]);
       setOrderNotes('');
-      setSelectedTable(null);
       setShowPaymentDialog(false);
       
       toast({
@@ -144,9 +135,6 @@ export function PosInterface() {
   useEffect(() => {
     if (lastMessage) {
       switch (lastMessage.type) {
-        case 'table-status-updated':
-          queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
-          break;
         case 'order-status-updated':
           queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
           break;
@@ -256,17 +244,7 @@ export function PosInterface() {
   };
 
   const processPayment = () => {
-    if (!selectedTable) {
-      toast({
-        title: "Select a table",
-        description: "Please select a table before processing payment.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const paymentData = {
-      tableId: selectedTable.id,
       orderItems: orderItems.map(item => ({
         menuItemId: item.menuItemId,
         quantity: item.quantity,
@@ -285,7 +263,6 @@ export function PosInterface() {
   const printReceipt = (receiptData?: any) => {
     // Use passed receipt data or fallback to current state (for backward compatibility)
     const data = receiptData || {
-      table: selectedTable,
       items: orderItems,
       notes: orderNotes,
       subtotal: calculateSubtotal(),
@@ -298,13 +275,12 @@ export function PosInterface() {
       <div style="font-family: monospace; width: 300px; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
           <h2>Restaurant Receipt</h2>
-          <p>Table: ${data.table?.number || 'N/A'}</p>
           <p>Date: ${new Date().toLocaleDateString()}</p>
           <p>Time: ${new Date().toLocaleTimeString()}</p>
         </div>
         <hr>
         <div style="margin: 20px 0;">
-          ${data.items?.map(item => `
+          ${data.items?.map((item: any) => `
             <div style="display: flex; justify-content: space-between; margin: 5px 0;">
               <span>${item.menuItem.name} x${item.quantity}</span>
               <span>€${Number(item.totalPrice).toFixed(2)}</span>
@@ -377,7 +353,6 @@ export function PosInterface() {
     const total = calculateTotal();
 
     createOrderMutation.mutate({
-      tableId: selectedTable?.id || null, // Tavolo opzionale
       status: 'new',
       subtotal: subtotal.toString(),
       tax: tax.toString(),
@@ -551,46 +526,10 @@ export function PosInterface() {
 
       {/* Right Panel - Order */}
       <div className="w-1/3 bg-card flex flex-col">
-        {/* Table Selection */}
+        {/* Current Order Header */}
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">Current Order</h2>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-muted-foreground">Table:</span>
-              <Dialog open={showTableDialog} onOpenChange={setShowTableDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="default" size="sm" data-testid="table-selector">
-                    <TableCellsSplit className="w-4 h-4 mr-1" />
-                    {selectedTable ? `Table ${selectedTable.number}` : 'Select Table'}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Select Table</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid grid-cols-6 gap-2 mt-4">
-                    {tables.map((table) => (
-                      <Button
-                        key={table.id}
-                        variant={selectedTable?.id === table.id ? 'default' : 'outline'}
-                        className={`aspect-square text-xs ${getTableStatusColor(table.status)}`}
-                        onClick={() => {
-                          setSelectedTable(table);
-                          setShowTableDialog(false);
-                        }}
-                        disabled={table.status === 'occupied'}
-                        data-testid={`table-option-${table.id}`}
-                      >
-                        <div className="text-center">
-                          <div>T{table.number}</div>
-                          <div className="text-xs">{table.status}</div>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
           </div>
         </div>
 
@@ -731,42 +670,6 @@ export function PosInterface() {
                       Items: {orderItems.length}
                     </div>
                     
-                    {/* Table Selection in Payment Dialog */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Table:</label>
-                      {!selectedTable ? (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                          <p className="text-sm text-amber-800 mb-2">Please select a table first</p>
-                          <div className="grid grid-cols-4 gap-1">
-                            {tables.slice(0, 8).map((table) => (
-                              <Button
-                                key={table.id}
-                                size="sm"
-                                variant={selectedTable?.id === table.id ? 'default' : 'outline'}
-                                className="text-xs h-8"
-                                onClick={() => setSelectedTable(table)}
-                                disabled={table.status === 'occupied'}
-                                data-testid={`quick-table-${table.id}`}
-                              >
-                                T{table.number}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded">
-                          <span className="text-sm text-green-800">Table {selectedTable.number}</span>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => setSelectedTable(null)}
-                            data-testid="change-table"
-                          >
-                            Change
-                          </Button>
-                        </div>
-                      )}
-                    </div>
                   </div>
                   
                   <div className="space-y-3">
