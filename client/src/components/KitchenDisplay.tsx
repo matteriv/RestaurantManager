@@ -65,7 +65,7 @@ export function KitchenDisplay() {
   // Update order line status mutation
   const updateOrderLineMutation = useMutation({
     mutationFn: async ({ orderLineId, status }: { orderLineId: string; status: string }) => {
-      const response = await apiRequest('PATCH', `/api/orders/lines/${orderLineId}/status`, { status });
+      const response = await apiRequest('PATCH', `/api/order-lines/${orderLineId}/status`, { status });
       return response.json();
     },
     onSuccess: () => {
