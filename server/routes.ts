@@ -210,6 +210,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         waiterId: userId,
       });
 
+      // Update inventory for tracked items
+      if (order.orderLines && order.orderLines.length > 0) {
+        for (const orderLine of order.orderLines) {
+          try {
+            // Get menu item details
+            const menuItem = await storage.getMenuItem(orderLine.menuItemId);
+            
+            // If inventory tracking is enabled, decrement stock
+            if (menuItem && menuItem.trackInventory && menuItem.currentStock !== null) {
+              const newStock = Math.max(0, (menuItem.currentStock || 0) - (orderLine.quantity || 1));
+              await storage.updateMenuItem(orderLine.menuItemId, {
+                currentStock: newStock
+              });
+            }
+          } catch (inventoryError) {
+            console.error(`Error updating inventory for item ${orderLine.menuItemId}:`, inventoryError);
+            // Continue processing other items even if one fails
+          }
+        }
+      }
+
       // Create audit log
       await storage.createAuditLog({
         userId,
@@ -242,6 +263,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const oldOrder = await storage.getOrder(id);
       const order = await storage.updateOrderStatus(id, status);
+
+      // Handle inventory restoration when order is cancelled
+      if (status === 'cancelled' && oldOrder?.status !== 'cancelled' && order.orderLines && order.orderLines.length > 0) {
+        for (const orderLine of order.orderLines) {
+          try {
+            // Get menu item details
+            const menuItem = await storage.getMenuItem(orderLine.menuItemId);
+            
+            // If inventory tracking is enabled, restore stock
+            if (menuItem && menuItem.trackInventory && menuItem.currentStock !== null) {
+              const restoredStock = (menuItem.currentStock || 0) + (orderLine.quantity || 1);
+              await storage.updateMenuItem(orderLine.menuItemId, {
+                currentStock: restoredStock
+              });
+            }
+          } catch (inventoryError) {
+            console.error(`Error restoring inventory for cancelled order item ${orderLine.menuItemId}:`, inventoryError);
+            // Continue processing other items even if one fails
+          }
+        }
+      }
 
       // Create audit log
       await storage.createAuditLog({
@@ -306,7 +348,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const userId = req.user.claims.sub;
       
+      // Get order line details before deletion for inventory restoration
+      const orderLine = await storage.getOrderLine(id);
+      
       await storage.deleteOrderLine(id);
+
+      // Restore inventory if item tracking is enabled
+      if (orderLine && orderLine.menuItemId) {
+        try {
+          const menuItem = await storage.getMenuItem(orderLine.menuItemId);
+          
+          if (menuItem && menuItem.trackInventory && menuItem.currentStock !== null) {
+            const restoredStock = (menuItem.currentStock || 0) + (orderLine.quantity || 1);
+            await storage.updateMenuItem(orderLine.menuItemId, {
+              currentStock: restoredStock
+            });
+          }
+        } catch (inventoryError) {
+          console.error(`Error restoring inventory for deleted order line ${id}:`, inventoryError);
+          // Continue processing even if inventory update fails
+        }
+      }
 
       // Create audit log
       await storage.createAuditLog({
