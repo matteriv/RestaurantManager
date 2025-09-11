@@ -163,7 +163,7 @@ export async function apiRequestRaw(
 }
 
 // Options-based API request function (new signature)
-export async function apiRequest<T = any>({ 
+async function apiRequestNew<T = any>({ 
   url, 
   method = 'GET', 
   body 
@@ -188,6 +188,22 @@ export async function apiRequest<T = any>({
 
   await throwIfResNotOk(res);
   return res.status === 204 ? (undefined as any) : (await res.json());
+}
+
+// Wrapper function that supports both old and new syntax
+export function apiRequest<T = any>(...args: any[]): Promise<T> {
+  // New syntax: apiRequest({ url, method, body })
+  if (args.length === 1 && typeof args[0] === 'object' && args[0].url) {
+    return apiRequestNew<T>(args[0]);
+  }
+  
+  // Old syntax: apiRequest(method, url, data)
+  if (args.length >= 2) {
+    const [method, url, data] = args;
+    return apiRequestNew<T>({ url, method, body: data });
+  }
+  
+  throw new Error('Invalid apiRequest arguments');
 }
 
 // Enhanced API request function with better error handling for multi-client

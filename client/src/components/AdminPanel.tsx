@@ -93,8 +93,7 @@ export function AdminPanel() {
   // Mutations
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/menu/items', data);
-      return response.json();
+      return await apiRequest({ url: '/api/menu/items', method: 'POST', body: data });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/items'] });
@@ -103,6 +102,14 @@ export function AdminPanel() {
       toast({
         title: t('common.success'),
         description: 'Articolo creato con successo',
+      });
+    },
+    onError: (error) => {
+      console.error('Menu item creation error:', error);
+      toast({
+        title: 'Errore',
+        description: 'Errore durante la creazione dell\'articolo',
+        variant: 'destructive',
       });
     },
   });
@@ -277,6 +284,9 @@ export function AdminPanel() {
       price: data.price.toString(),
       prepTimeMinutes: parseInt(data.prepTimeMinutes) || 0,
       isAvailable: true,
+      // Convert inventory fields to numbers, handle empty strings
+      currentStock: data.currentStock ? parseInt(data.currentStock) : 0,
+      minStock: data.minStock ? parseInt(data.minStock) : 0,
     };
 
     if (editingItem) {
