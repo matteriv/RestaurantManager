@@ -39,7 +39,8 @@ export function PosInterface() {
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
     queryKey: ['/api/menu/items', selectedCategory || 'all'],
     queryFn: async () => {
-      const response = await apiRequest('GET', selectedCategory ? `/api/menu/items?categoryId=${selectedCategory}` : '/api/menu/items');
+      const categoryParam = selectedCategory || 'all';
+      const response = await apiRequest('GET', categoryParam === 'all' ? '/api/menu/items' : `/api/menu/items?categoryId=${categoryParam}`);
       return response.json();
     },
     refetchInterval: 15000, // Refresh every 15 seconds for products
