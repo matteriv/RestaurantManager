@@ -116,8 +116,7 @@ export function AdminPanel() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const response = await apiRequest('PATCH', `/api/menu/items/${id}`, data);
-      return response.json();
+      return await apiRequest('PATCH', `/api/menu/items/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/items'] });
@@ -141,8 +140,7 @@ export function AdminPanel() {
 
   const deleteItemMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest('DELETE', `/api/menu/items/${id}`);
-      return response.json();
+      return await apiRequest('DELETE', `/api/menu/items/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/items'] });
@@ -155,8 +153,7 @@ export function AdminPanel() {
 
   const createCategoryMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/menu/categories', data);
-      return response.json();
+      return await apiRequest('POST', '/api/menu/categories', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/categories'] });
@@ -171,8 +168,7 @@ export function AdminPanel() {
 
   const createTableMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/tables', data);
-      return response.json();
+      return await apiRequest('POST', '/api/tables', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
@@ -187,8 +183,7 @@ export function AdminPanel() {
 
   const createDepartmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiRequest('POST', '/api/departments', data);
-      return response.json();
+      return await apiRequest('POST', '/api/departments', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
@@ -204,8 +199,7 @@ export function AdminPanel() {
 
   const updateDepartmentMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const response = await apiRequest('PATCH', `/api/departments/${id}`, data);
-      return response.json();
+      return await apiRequest('PATCH', `/api/departments/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
@@ -221,8 +215,7 @@ export function AdminPanel() {
 
   const deleteDepartmentMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest('DELETE', `/api/departments/${id}`);
-      return response.json();
+      return await apiRequest('DELETE', `/api/departments/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
@@ -236,8 +229,7 @@ export function AdminPanel() {
   // Reset system mutation
   const resetSystemMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/admin/reset-system');
-      return response.json();
+      return await apiRequest('POST', '/api/admin/reset-system');
     },
     onSuccess: () => {
       // Invalidate all queries to refresh data
