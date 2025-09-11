@@ -52,6 +52,11 @@ function Router() {
             <CustomerMonitor />
           </WebSocketProvider>
         </Route>
+        <Route path="/kds">
+          <WebSocketProvider clientType="kds">
+            <KitchenDisplay />
+          </WebSocketProvider>
+        </Route>
         <Route component={NotFound} />
       </Switch>
     );
@@ -70,6 +75,11 @@ function Router() {
         </WebSocketProvider>
       </Route>
       <Route path="/kitchen">
+        <WebSocketProvider clientType="kds">
+          <KitchenDisplay />
+        </WebSocketProvider>
+      </Route>
+      <Route path="/kds">
         <WebSocketProvider clientType="kds">
           <KitchenDisplay />
         </WebSocketProvider>
