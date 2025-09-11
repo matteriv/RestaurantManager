@@ -19,7 +19,7 @@ interface OrderItem extends InsertOrderLine {
 }
 
 export function PosInterface() {
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
   const [showNotesDialog, setShowNotesDialog] = useState(false);
@@ -37,12 +37,13 @@ export function PosInterface() {
   });
 
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
-    queryKey: ['/api/menu/items', selectedCategory],
+    queryKey: ['/api/menu/items', selectedCategory || 'all'],
     queryFn: async () => {
       const response = await apiRequest('GET', selectedCategory ? `/api/menu/items?categoryId=${selectedCategory}` : '/api/menu/items');
       return response.json();
     },
     refetchInterval: 15000, // Refresh every 15 seconds for products
+    enabled: true, // Always enable the query
   });
 
 
@@ -126,7 +127,7 @@ export function PosInterface() {
 
   // Set default category
   useEffect(() => {
-    if (categories.length > 0 && !selectedCategory) {
+    if (categories.length > 0 && selectedCategory === null) {
       setSelectedCategory(categories[0].id);
     }
   }, [categories, selectedCategory]);
