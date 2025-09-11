@@ -40,8 +40,9 @@ export function PosInterface() {
     queryKey: ['/api/menu/items', selectedCategory || 'all'],
     queryFn: async () => {
       const categoryParam = selectedCategory || 'all';
-      const response = await apiRequest('GET', categoryParam === 'all' ? '/api/menu/items' : `/api/menu/items?categoryId=${categoryParam}`);
-      return response.json();
+      const url = categoryParam === 'all' ? '/api/menu/items' : `/api/menu/items?categoryId=${categoryParam}`;
+      const data = await apiRequest('GET', url);
+      return data;
     },
     refetchInterval: 15000, // Refresh every 15 seconds for products
     enabled: true, // Always enable the query
@@ -132,6 +133,8 @@ export function PosInterface() {
       setSelectedCategory(categories[0].id);
     }
   }, [categories, selectedCategory]);
+
+  // Debug logging for selectedCategory changes
 
   // Handle WebSocket messages
   useEffect(() => {
