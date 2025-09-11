@@ -565,110 +565,129 @@ export function AdminPanel() {
                       Nuovo Articolo
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-lg">
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>{editingItem ? 'Modifica Articolo' : 'Nuovo Articolo'}</DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={itemForm.handleSubmit(onSubmitItem)} className="space-y-4">
-                      <div>
-                        <Label htmlFor="itemName">Nome</Label>
-                        <Input id="itemName" {...itemForm.register('name', { required: true })} />
+                    
+                    <form onSubmit={itemForm.handleSubmit(onSubmitItem)} className="space-y-3">
+                      {/* Basic Information - 2 columns */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="itemName">Nome</Label>
+                          <Input id="itemName" {...itemForm.register('name', { required: true })} data-testid="input-item-name" />
+                        </div>
+                        <div>
+                          <Label htmlFor="itemPrice">Prezzo (€)</Label>
+                          <Input type="number" step="0.01" id="itemPrice" {...itemForm.register('price', { required: true })} data-testid="input-item-price" />
+                        </div>
                       </div>
+
                       <div>
                         <Label htmlFor="itemDescription">Descrizione</Label>
-                        <Textarea id="itemDescription" {...itemForm.register('description')} />
+                        <Textarea id="itemDescription" {...itemForm.register('description')} className="resize-none h-20" data-testid="textarea-item-description" />
                       </div>
-                      <div>
-                        <Label htmlFor="itemPrice">Prezzo (€)</Label>
-                        <Input type="number" step="0.01" id="itemPrice" {...itemForm.register('price', { required: true })} />
-                      </div>
-                      <div>
-                        <Label htmlFor="categoryId">Categoria</Label>
-                        <Controller
-                          name="categoryId"
-                          control={itemForm.control}
-                          defaultValue=""
-                          render={({ field }) => (
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleziona categoria" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {categories.map(category => (
-                                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="station">Stazione</Label>
-                        <Controller
-                          name="station"
-                          control={itemForm.control}
-                          defaultValue=""
-                          render={({ field }) => (
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Seleziona stazione" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {stations.map(station => (
-                                  <SelectItem key={station.value} value={station.value}>{station.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="prepTime">Tempo Preparazione (minuti)</Label>
-                        <Input type="number" id="prepTime" {...itemForm.register('prepTimeMinutes')} />
-                      </div>
-                      
-                      {/* Gestione Inventario */}
-                      <div className="border-t pt-4">
-                        <h4 className="font-medium mb-3">Gestione Inventario</h4>
-                        <div className="flex items-center space-x-2 mb-3">
-                          <input type="checkbox" id="trackInventory" {...itemForm.register('trackInventory')} />
-                          <Label htmlFor="trackInventory">Abilita controllo inventario</Label>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label htmlFor="currentStock">Giacenza Attuale</Label>
-                            <Input type="number" id="currentStock" {...itemForm.register('currentStock')} />
-                          </div>
-                          <div>
-                            <Label htmlFor="minStock">Giacenza Minima</Label>
-                            <Input type="number" id="minStock" {...itemForm.register('minStock')} />
-                          </div>
-                        </div>
-                        
-                        <div className="mt-3">
-                          <Label htmlFor="departmentId">Reparto</Label>
+
+                      {/* Categories and Station - 3 columns */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <Label htmlFor="categoryId">Categoria</Label>
                           <Controller
-                            name="departmentId"
+                            name="categoryId"
                             control={itemForm.control}
                             defaultValue=""
                             render={({ field }) => (
                               <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleziona reparto" />
+                                <SelectTrigger data-testid="select-category">
+                                  <SelectValue placeholder="Seleziona categoria" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {departments.map(department => (
-                                    <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                                  {categories.map(category => (
+                                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             )}
                           />
                         </div>
+                        <div>
+                          <Label htmlFor="station">Stazione</Label>
+                          <Controller
+                            name="station"
+                            control={itemForm.control}
+                            defaultValue=""
+                            render={({ field }) => (
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger data-testid="select-station">
+                                  <SelectValue placeholder="Seleziona stazione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {stations.map(station => (
+                                    <SelectItem key={station.value} value={station.value}>{station.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="prepTime">Tempo Prep. (min)</Label>
+                          <Input type="number" id="prepTime" {...itemForm.register('prepTimeMinutes')} data-testid="input-prep-time" />
+                        </div>
                       </div>
                       
-                      <Button type="submit" className="w-full">{t('common.save')}</Button>
+                      {/* Inventory Management Section */}
+                      <div className="border-t pt-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">Gestione Inventario</h4>
+                          <div className="flex items-center space-x-2">
+                            <input type="checkbox" id="trackInventory" {...itemForm.register('trackInventory')} data-testid="checkbox-track-inventory" />
+                            <Label htmlFor="trackInventory" className="text-sm">Abilita controllo inventario</Label>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <Label htmlFor="currentStock">Giacenza Attuale</Label>
+                            <Input type="number" id="currentStock" {...itemForm.register('currentStock')} data-testid="input-current-stock" />
+                          </div>
+                          <div>
+                            <Label htmlFor="minStock">Giacenza Minima</Label>
+                            <Input type="number" id="minStock" {...itemForm.register('minStock')} data-testid="input-min-stock" />
+                          </div>
+                          <div>
+                            <Label htmlFor="departmentId">Reparto</Label>
+                            <Controller
+                              name="departmentId"
+                              control={itemForm.control}
+                              defaultValue=""
+                              render={({ field }) => (
+                                <Select value={field.value} onValueChange={field.onChange}>
+                                  <SelectTrigger data-testid="select-department">
+                                    <SelectValue placeholder="Seleziona reparto" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {departments.map(department => (
+                                      <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Dialog Footer with Save Button - Now inside form */}
+                      <div className="flex justify-end pt-4 border-t bg-white sticky bottom-0">
+                        <Button 
+                          type="submit" 
+                          disabled={createItemMutation.isPending || updateItemMutation.isPending}
+                          data-testid="button-save-item"
+                        >
+                          {createItemMutation.isPending || updateItemMutation.isPending ? 'Salvando...' : t('common.save')}
+                        </Button>
+                      </div>
                     </form>
                   </DialogContent>
                 </Dialog>
