@@ -58,6 +58,24 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// System configuration
+export const systemConfig = pgTable("system_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  setupComplete: boolean("setup_complete").default(false),
+  mode: varchar("mode").default('auto'), // 'server', 'client', 'auto'
+  restaurantName: varchar("restaurant_name"),
+  restaurantAddress: text("restaurant_address"),
+  enabledModules: jsonb("enabled_modules"), // Array of enabled modules
+  networkConfig: jsonb("network_config"), // Network discovery configuration
+  serverProfiles: jsonb("server_profiles"), // Saved server configurations
+  currentServerId: varchar("current_server_id"),
+  clientId: varchar("client_id"),
+  theme: varchar("theme").default('light'),
+  language: varchar("language").default('en'),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Menu categories
 export const menuCategories = pgTable("menu_categories", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -263,6 +281,12 @@ export const insertSettingSchema = createInsertSchema(settings).omit({
   updatedAt: true,
 });
 
+export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertMenuCategorySchema = createInsertSchema(menuCategories).omit({
   id: true,
   createdAt: true,
@@ -313,6 +337,8 @@ export type Department = typeof departments.$inferSelect;
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = z.infer<typeof insertSettingSchema>;
+export type SystemConfig = typeof systemConfig.$inferSelect;
+export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
 export type MenuCategory = typeof menuCategories.$inferSelect;
 export type InsertMenuCategory = z.infer<typeof insertMenuCategorySchema>;
 export type MenuItem = typeof menuItems.$inferSelect;

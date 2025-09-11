@@ -2,6 +2,7 @@ import {
   users,
   departments,
   settings,
+  systemConfig,
   menuCategories,
   menuItems,
   tables,
@@ -15,6 +16,8 @@ import {
   type InsertDepartment,
   type Setting,
   type InsertSetting,
+  type SystemConfig,
+  type InsertSystemConfig,
   type MenuCategory,
   type InsertMenuCategory,
   type MenuItem,
@@ -50,6 +53,12 @@ export interface IStorage {
   getSettings(): Promise<Setting[]>;
   getSetting(key: string): Promise<Setting | undefined>;
   upsertSetting(setting: InsertSetting): Promise<Setting>;
+
+  // System configuration operations
+  getSystemConfig(): Promise<SystemConfig | undefined>;
+  createSystemConfig(config: InsertSystemConfig): Promise<SystemConfig>;
+  updateSystemConfig(config: Partial<InsertSystemConfig>): Promise<SystemConfig>;
+  isSetupComplete(): Promise<boolean>;
 
   // Menu operations
   getMenuCategories(): Promise<MenuCategory[]>;
@@ -237,6 +246,50 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return upsertedSetting;
+  }
+
+  // System configuration operations
+  async getSystemConfig(): Promise<SystemConfig | undefined> {
+    const [config] = await db.select().from(systemConfig).limit(1);
+    return config;
+  }
+
+  async createSystemConfig(configData: InsertSystemConfig): Promise<SystemConfig> {
+    const [newConfig] = await db
+      .insert(systemConfig)
+      .values({
+        ...configData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newConfig;
+  }
+
+  async updateSystemConfig(updates: Partial<InsertSystemConfig>): Promise<SystemConfig> {
+    // Get existing config first
+    const existing = await this.getSystemConfig();
+    
+    if (!existing) {
+      // Create new config if none exists
+      return this.createSystemConfig(updates as InsertSystemConfig);
+    }
+
+    const [updatedConfig] = await db
+      .update(systemConfig)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(systemConfig.id, existing.id))
+      .returning();
+    
+    return updatedConfig;
+  }
+
+  async isSetupComplete(): Promise<boolean> {
+    const config = await this.getSystemConfig();
+    return config?.setupComplete ?? false;
   }
 
   // Menu operations
