@@ -132,11 +132,14 @@ export function shouldRetryConnection(): boolean {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const error = new Error(`${res.status}: ${text}`);
+    (error as any).status = res.status;
+    throw error;
   }
 }
 
-export async function apiRequest(
+// Raw API request function (original signature)
+export async function apiRequestRaw(
   method: string,
   url: string,
   data?: unknown | undefined,
@@ -159,6 +162,34 @@ export async function apiRequest(
   return res;
 }
 
+// Options-based API request function (new signature)
+export async function apiRequest<T = any>({ 
+  url, 
+  method = 'GET', 
+  body 
+}: { 
+  url: string; 
+  method?: string; 
+  body?: any; 
+}): Promise<T> {
+  const fullUrl = buildApiUrl(url);
+  
+  // Check health for remote connections
+  if (apiConfig.isRemote && !apiConfig.isHealthy && shouldRetryConnection()) {
+    await performHealthCheck();
+  }
+  
+  const res = await fetch(fullUrl, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : {},
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return res.status === 204 ? (undefined as any) : (await res.json());
+}
+
 // Enhanced API request function with better error handling for multi-client
 export async function safeApiRequest(
   method: string,
@@ -166,7 +197,7 @@ export async function safeApiRequest(
   data?: unknown | undefined,
 ): Promise<Response | null> {
   try {
-    return await apiRequest(method, url, data);
+    return await apiRequestRaw(method, url, data);
   } catch (error: any) {
     console.error('API request failed:', error.message);
     
