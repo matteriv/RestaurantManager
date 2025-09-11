@@ -279,6 +279,8 @@ export function AdminPanel() {
       // Convert inventory fields to numbers, handle empty strings
       currentStock: data.currentStock ? parseInt(data.currentStock) : 0,
       minStock: data.minStock ? parseInt(data.minStock) : 0,
+      // Handle departmentId - convert empty string to null to avoid foreign key constraint error
+      departmentId: data.departmentId && data.departmentId !== '' ? data.departmentId : null,
     };
 
     if (editingItem) {
