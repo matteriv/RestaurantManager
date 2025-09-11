@@ -135,9 +135,17 @@ The following critical issues were identified and resolved to ensure robust mult
 - **Solution**: Implemented comprehensive CORS support for localhost and LAN/WLAN networks (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
 - **Impact**: Enables secure multi-client deployments across network segments with credential support
 
+#### POS Menu Category Filtering Fix (2025-09-11)
+- **Issue**: Menu items failed to load when selecting categories in POS interface due to double JSON parsing error
+- **Root Cause**: Frontend code called `.json()` on data already parsed by `apiRequest` wrapper function
+- **Solution**: Removed erroneous `response.json()` call in PosInterface.tsx queryFn - `apiRequest` already returns parsed data
+- **Impact**: Full POS functionality restored - category filtering, item display, cart operations, and order totals now work end-to-end
+- **Verification**: Test confirmed pizza category loads items, Margherita pizza adds to cart (€8.00), totals calculate correctly (€9.76 with tax)
+
 ### System Reliability Status
 - ✅ WebSocket connections maintain reliability through network interruptions
 - ✅ Network discovery processes clean up properly on navigation
 - ✅ Configuration wizard supports all deployment scenarios
 - ✅ Cross-origin client connections work securely across LAN/WLAN
 - ✅ Health monitoring informs UI without blocking critical reconnection logic
+- ✅ POS menu category filtering and cart operations fully functional

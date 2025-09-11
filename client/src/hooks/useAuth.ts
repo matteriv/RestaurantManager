@@ -4,14 +4,11 @@ export function useAuth() {
   const { data: user, isLoading, error } = useQuery({
     queryKey: ["/api/auth/user"],
     retry: false,
-    refetchInterval: 1000, // Check auth status every second
-    refetchIntervalInBackground: true,
+    // Remove frequent refetching that was causing performance issues
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
   });
 
-  // Debug logging in development
-  if (import.meta.env.DEV) {
-    console.log('🔒 useAuth status:', { user, isLoading, error, isAuthenticated: !!user });
-  }
+  // Debug logging removed to prevent console spam
 
   return {
     user,
