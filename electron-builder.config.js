@@ -22,13 +22,17 @@ module.exports = {
     buildResources: 'build-resources'
   },
   
-  // Files to include/exclude
+  // Files to include/exclude  
   files: [
     'dist/**/*',
     'electron/**/*',
-    'node_modules/**/*',
-    'package.json'
+    'package.json',
+    '!node_modules/.cache/**/*',
+    '!.cache/**/*'
   ],
+  
+  // Disable asar to avoid symlink issues in containerized environments
+  asar: false,
   
   extraResources: [
     {
