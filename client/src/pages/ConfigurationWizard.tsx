@@ -142,14 +142,14 @@ export default function ConfigurationWizardPage({ isReconfigure = false }: Confi
     restaurantName: config.restaurantName || '',
     restaurantAddress: config.restaurantAddress || '',
     mode: config.mode as 'server' | 'client' | 'auto' || 'auto',
-    enabledModules: config.enabledModules ? JSON.parse(config.enabledModules) : [],
+    enabledModules: config.enabledModules ? (typeof config.enabledModules === 'string' ? JSON.parse(config.enabledModules) : config.enabledModules) : [],
     theme: config.theme as 'light' | 'dark' || 'light',
     language: config.language || 'en',
     clientId: config.clientId || '',
     // Parse network config if available
     ...(config.networkConfig ? (() => {
       try {
-        const networkConfig = JSON.parse(config.networkConfig);
+        const networkConfig = typeof config.networkConfig === 'string' ? JSON.parse(config.networkConfig) : config.networkConfig;
         return {
           serverAddress: networkConfig.serverAddress || '',
           serverPort: networkConfig.serverPort || 5000,

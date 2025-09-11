@@ -63,6 +63,20 @@ export function useSystemConfig(): SystemConfigHook {
     queryKey: ['/api/system/config'],
     retry: false,
     refetchOnWindowFocus: false,
+    queryFn: async ({ queryKey }) => {
+      try {
+        return await apiRequest<SystemConfig>({
+          url: queryKey[0] as string,
+          method: 'GET',
+        });
+      } catch (error: any) {
+        // Treat 404 as a normal state (no configuration yet)
+        if (error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
   });
 
   // Check if setup is complete
