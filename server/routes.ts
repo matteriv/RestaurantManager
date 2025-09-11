@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import cors from "cors";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, insertSystemConfigSchema, type InsertOrderLine } from "@shared/schema";
@@ -12,6 +13,30 @@ interface WebSocketClient extends WebSocket {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // CORS configuration for multi-client support
+  app.use(cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Electron, etc.)
+      if (!origin) return callback(null, true);
+      
+      // Allow localhost and local network IPs for development and LAN clients
+      const allowedOrigins = [
+        /^https?:\/\/localhost(:\d+)?$/,
+        /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+        /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/,
+        /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,
+        /^https?:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+(:\d+)?$/
+      ];
+      
+      const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
+      callback(null, isAllowed);
+    },
+    credentials: true, // Allow cookies and auth headers
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie']
+  }));
+
   // Health endpoint (no auth required) - used by network discovery services
   app.get('/api/health', (req, res) => {
     res.json({

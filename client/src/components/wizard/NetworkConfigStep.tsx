@@ -19,6 +19,8 @@ import {
   Shield,
   Clock
 } from 'lucide-react';
+import { useSystemConfig } from '@/hooks/useSystemConfig';
+import { performHealthCheck, initializeApiConfig } from '@/lib/queryClient';
 import type { WizardConfig } from '../ConfigurationWizard';
 
 interface NetworkConfigStepProps {
@@ -41,14 +43,22 @@ interface DiscoveredServer {
 }
 
 export function NetworkConfigStep({ config, onConfigChange }: NetworkConfigStepProps) {
-  const [isScanning, setIsScanning] = useState(false);
-  const [discoveredServers, setDiscoveredServers] = useState<DiscoveredServer[]>([]);
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [manualConfig, setManualConfig] = useState({
     address: config.serverAddress || '',
     port: config.serverPort || 5000,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [connectionTestResults, setConnectionTestResults] = useState<Record<string, { success: boolean; latency?: number; error?: string }>>({});
+
+  // Use the system config hook for real discovery functionality
+  const {
+    discoveredServers,
+    isDiscovering,
+    startDiscovery,
+    stopDiscovery,
+    testConnection,
+  } = useSystemConfig();
 
   const isServerMode = config.mode === 'server';
   const isClientMode = config.mode === 'client';
@@ -58,46 +68,18 @@ export function NetworkConfigStep({ config, onConfigChange }: NetworkConfigStepP
     if (isAutoMode || isClientMode) {
       handleStartDiscovery();
     }
-  }, [config.mode]);
+    
+    // Cleanup discovery on unmount - always call stopDiscovery to be safe
+    return () => {
+      stopDiscovery();
+    };
+  }, [config.mode, stopDiscovery]);
 
   const handleStartDiscovery = async () => {
-    setIsScanning(true);
-    setDiscoveredServers([]);
-    
     try {
-      // Simulate server discovery - in real implementation this would use the network discovery service
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockServers: DiscoveredServer[] = [
-        {
-          id: 'server-1',
-          name: 'Main Restaurant Server',
-          address: '192.168.1.100',
-          port: 5000,
-          version: '1.0.0',
-          features: ['pos', 'kitchen', 'admin'],
-          lastSeen: new Date(),
-          latency: 15,
-          isReachable: true,
-        },
-        {
-          id: 'server-2',
-          name: 'Kitchen Terminal',
-          address: '192.168.1.101',
-          port: 5000,
-          version: '1.0.0',
-          features: ['kitchen'],
-          lastSeen: new Date(Date.now() - 30000),
-          latency: 28,
-          isReachable: true,
-        },
-      ];
-      
-      setDiscoveredServers(mockServers);
+      await startDiscovery();
     } catch (error) {
       console.error('Discovery failed:', error);
-    } finally {
-      setIsScanning(false);
     }
   };
 
@@ -124,6 +106,52 @@ export function NetworkConfigStep({ config, onConfigChange }: NetworkConfigStepP
     }
   };
 
+  const handleTestConnection = async (server: DiscoveredServer) => {
+    try {
+      const result = await testConnection(server.address, server.port);
+      setConnectionTestResults(prev => ({
+        ...prev,
+        [server.id]: result
+      }));
+    } catch (error: any) {
+      setConnectionTestResults(prev => ({
+        ...prev,
+        [server.id]: { success: false, error: error.message }
+      }));
+    }
+  };
+
+  const handleTestManualConnection = async () => {
+    if (!manualConfig.address || !manualConfig.port) {
+      setErrors({ address: 'Please enter server address and port' });
+      return;
+    }
+
+    try {
+      const result = await testConnection(manualConfig.address, manualConfig.port);
+      setConnectionTestResults(prev => ({
+        ...prev,
+        manual: result
+      }));
+      
+      if (result.success) {
+        setErrors({});
+        // If successful, initialize API config for this server
+        await initializeApiConfig({
+          mode: config.mode,
+          networkConfig: {
+            serverAddress: manualConfig.address,
+            serverPort: manualConfig.port,
+          }
+        } as any);
+      } else {
+        setErrors({ connection: result.error || 'Connection test failed' });
+      }
+    } catch (error: any) {
+      setErrors({ connection: error.message || 'Connection test failed' });
+    }
+  };
+
   const handleToggleAutoDiscovery = (enabled: boolean) => {
     onConfigChange({ autoDiscovery: enabled });
   };
@@ -146,7 +174,9 @@ export function NetworkConfigStep({ config, onConfigChange }: NetworkConfigStepP
 
   const isConfigurationComplete = () => {
     if (isServerMode) return true;
-    if (isAutoMode) return discoveredServers.length > 0 || !config.autoDiscovery;
+    if (isAutoMode) {
+      return config.autoDiscovery ? discoveredServers.length > 0 : validateConfiguration();
+    }
     if (isClientMode) {
       return config.autoDiscovery ? selectedServerId !== null : validateConfiguration();
     }
@@ -244,22 +274,22 @@ export function NetworkConfigStep({ config, onConfigChange }: NetworkConfigStepP
                   variant="outline"
                   size="sm"
                   onClick={handleStartDiscovery}
-                  disabled={isScanning}
+                  disabled={isDiscovering}
                   data-testid="button-refresh-discovery"
                 >
-                  {isScanning ? (
+                  {isDiscovering ? (
                     <RefreshCw className="w-4 h-4 animate-spin mr-2" />
                   ) : (
                     <Search className="w-4 h-4 mr-2" />
                   )}
-                  {isScanning ? 'Scanning...' : 'Scan Network'}
+                  {isDiscovering ? 'Scanning...' : 'Scan Network'}
                 </Button>
               )}
             </div>
 
             {config.autoDiscovery && (
               <div className="space-y-3">
-                {isScanning && (
+                {isDiscovering && (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
                       <div key={i} className="flex items-center space-x-3 p-3 border rounded-lg">
@@ -273,7 +303,7 @@ export function NetworkConfigStep({ config, onConfigChange }: NetworkConfigStepP
                   </div>
                 )}
 
-                {!isScanning && discoveredServers.length === 0 && (
+                {!isDiscovering && discoveredServers.length === 0 && (
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
