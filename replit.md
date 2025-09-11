@@ -109,3 +109,35 @@ Preferred communication style: Simple, everyday language.
 - **zod**: Runtime type validation
 - **clsx & tailwind-merge**: Conditional CSS class management
 - **nanoid**: Unique ID generation
+
+## Recent Architectural Corrections (2025-09-11)
+
+### Multi-Client System Stability Fixes
+The following critical issues were identified and resolved to ensure robust multi-client deployment:
+
+#### WebSocket Reconnection Enhancement
+- **Issue**: Reconnection could halt prematurely when health checks failed, risking permanent disconnection
+- **Solution**: Decoupled reconnection logic from health checks - now always attempts up to 10 retries regardless of health status
+- **Impact**: Guarantees client reconnection reliability across network interruptions and server restarts
+
+#### Discovery Process Cleanup
+- **Issue**: Stale closure bug in useEffect could prevent proper cleanup of network discovery on component unmount
+- **Solution**: Enhanced useEffect dependencies and always call stopDiscovery() in cleanup function
+- **Impact**: Prevents memory leaks and ensures clean discovery termination
+
+#### Configuration Wizard Validation
+- **Issue**: Auto discovery mode failed to validate manual server configuration when auto-discovery was disabled
+- **Solution**: Corrected validation logic to properly handle manual configuration in all modes
+- **Impact**: Enables flexible server configuration for complex network environments
+
+#### Cross-Origin Request Support
+- **Issue**: Missing CORS configuration prevented remote client connections
+- **Solution**: Implemented comprehensive CORS support for localhost and LAN/WLAN networks (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+- **Impact**: Enables secure multi-client deployments across network segments with credential support
+
+### System Reliability Status
+- ✅ WebSocket connections maintain reliability through network interruptions
+- ✅ Network discovery processes clean up properly on navigation
+- ✅ Configuration wizard supports all deployment scenarios
+- ✅ Cross-origin client connections work securely across LAN/WLAN
+- ✅ Health monitoring informs UI without blocking critical reconnection logic
