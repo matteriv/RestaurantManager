@@ -53,8 +53,7 @@ export function PosInterface() {
   const { data: dailySales = { total: 0, orderCount: 0, avgOrderValue: 0 } } = useQuery({
     queryKey: ['/api/analytics/daily-sales', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/analytics/daily-sales?date=${new Date().toISOString().split('T')[0]}`);
-      return response.json();
+      return await apiRequest('GET', `/api/analytics/daily-sales?date=${new Date().toISOString().split('T')[0]}`);
     },
     refetchInterval: 60000, // Refresh every minute
   });
@@ -62,8 +61,7 @@ export function PosInterface() {
   // Mutations
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      const response = await apiRequest('POST', '/api/orders', orderData);
-      return response.json();
+      return await apiRequest('POST', '/api/orders', orderData);
     },
     onSuccess: () => {
       setOrderItems([]);
@@ -87,8 +85,7 @@ export function PosInterface() {
   // Payment mutation
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      const response = await apiRequest('POST', '/api/payments/process', paymentData);
-      return response.json();
+      return await apiRequest('POST', '/api/payments/process', paymentData);
     },
     onSuccess: () => {
       // Capture receipt data before clearing UI state
