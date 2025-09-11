@@ -12,6 +12,17 @@ interface WebSocketClient extends WebSocket {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health endpoint (no auth required) - used by network discovery services
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'restaurant-management',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      version: process.env.npm_package_version || '1.0.0'
+    });
+  });
+
   // Auth middleware
   await setupAuth(app);
 

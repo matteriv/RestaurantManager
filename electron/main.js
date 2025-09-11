@@ -4,12 +4,19 @@ const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 const log = require('electron-log');
 const { autoUpdater } = require('electron-updater');
-const discovery = require('udp-discovery').default;
 
 // Keep a global reference of the window object
 let mainWindow;
 let serverProcess;
-let serverPort = 5000;
+// Use the same port logic as Express server
+let serverPort = parseInt(process.env.PORT || '5000', 10);
+
+// Network Discovery Services
+let serverDiscovery = null;
+let clientDiscovery = null;
+let healthMonitor = null;
+let configManager = null;
+let networkMode = 'auto'; // 'server', 'client', 'auto'
 
 // Enable live reload for Electron in development
 if (isDev) {
@@ -27,34 +34,172 @@ log.transports.console.format = '{h}:{i}:{s} {text}';
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 
-// UDP Discovery for network service discovery
-const udpDiscovery = new discovery({
-  port: 44201,
-  bindAddr: '0.0.0.0',
-  dgramType: 'udp4'
-});
-
-// Service discovery functions
-function startServiceDiscovery() {
+// Network discovery initialization
+async function initializeNetworkDiscovery() {
   try {
-    udpDiscovery.on('MessageBus', (data, info) => {
-      log.info('Discovered service:', data, 'from', info.address);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('service-discovered', { data, info });
+    // Import network discovery modules (using dynamic import for ES modules in CommonJS)
+    const { getServerDiscoveryService } = await import('../server/serverDiscovery.js');
+    const { getClientDiscoveryService } = await import('../server/clientDiscovery.js');
+    const { getNetworkHealthMonitor } = await import('../server/networkHealthMonitor.js');
+    const { getNetworkConfigManager } = await import('../server/networkConfig.js');
+
+    // Initialize services
+    configManager = getNetworkConfigManager(path.join(app.getPath('userData'), 'network-config.json'));
+    
+    const config = await configManager.loadConfig();
+    networkMode = config.mode;
+
+    log.info(`Network discovery mode: ${networkMode}`);
+
+    // Initialize health monitor
+    healthMonitor = getNetworkHealthMonitor({
+      enableLogging: true,
+      checkInterval: 15000,
+      enableAutoReconnect: true,
+    });
+
+    // Set up health monitor events
+    healthMonitor.on('connection-lost', (serverId) => {
+      log.warn(`Connection lost to server: ${serverId}`);
+      sendToRenderer('network-connection-lost', { serverId });
+    });
+
+    healthMonitor.on('connection-restored', (serverId) => {
+      log.info(`Connection restored to server: ${serverId}`);
+      sendToRenderer('network-connection-restored', { serverId });
+    });
+
+    healthMonitor.on('server-discovered', (server) => {
+      log.info(`Server discovered: ${server.name} at ${server.address}:${server.port}`);
+      sendToRenderer('network-server-discovered', { server });
+    });
+
+    await healthMonitor.start();
+
+    // Initialize discovery services based on mode
+    if (networkMode === 'server' || networkMode === 'auto') {
+      await initializeServerMode();
+    }
+
+    if (networkMode === 'client' || networkMode === 'auto') {
+      await initializeClientMode();
+    }
+
+    log.info('Network discovery system initialized successfully');
+  } catch (error) {
+    log.error('Failed to initialize network discovery:', error);
+  }
+}
+
+async function initializeServerMode() {
+  try {
+    const { getServerDiscoveryService } = await import('../server/serverDiscovery.js');
+    
+    serverDiscovery = getServerDiscoveryService({
+      port: 44201,
+      serverPort: serverPort,
+      broadcastInterval: 10000,
+      enableLogging: true,
+    });
+
+    // Set up server discovery events
+    serverDiscovery.on('server-discovered', (server) => {
+      log.info(`Server discovered in server mode: ${server.name}`);
+      sendToRenderer('network-server-discovered', { server });
+      
+      // Add to health monitoring
+      if (healthMonitor) {
+        healthMonitor.addServer(server);
+      }
+
+      // Save to config
+      if (configManager) {
+        configManager.addServer(server).catch(error => {
+          log.error('Failed to save discovered server:', error);
+        });
       }
     });
 
-    // Announce this restaurant POS system
-    udpDiscovery.sendMessage('restaurant-pos', {
-      service: 'restaurant-management',
-      version: app.getVersion(),
-      port: serverPort,
-      features: ['pos', 'kitchen', 'admin', 'customer']
+    serverDiscovery.on('error', (error) => {
+      log.error('Server discovery error:', error);
+      sendToRenderer('network-error', { error: error.message, source: 'server-discovery' });
     });
 
-    log.info('UDP Discovery started on port 44201');
+    serverDiscovery.on('network-changed', (status) => {
+      log.info('Network changed in server mode');
+      sendToRenderer('network-status-changed', status);
+    });
+
+    await serverDiscovery.start();
+    log.info('Server discovery service started');
   } catch (error) {
-    log.error('Failed to start service discovery:', error);
+    log.error('Failed to start server discovery:', error);
+  }
+}
+
+async function initializeClientMode() {
+  try {
+    const { getClientDiscoveryService } = await import('../server/clientDiscovery.js');
+    
+    clientDiscovery = getClientDiscoveryService({
+      port: 44201,
+      discoveryInterval: 30000,
+      autoConnect: true,
+      enableLogging: true,
+    });
+
+    // Set up client discovery events
+    clientDiscovery.on('server-discovered', (server) => {
+      log.info(`Server discovered in client mode: ${server.name}`);
+      sendToRenderer('network-server-discovered', { server });
+      
+      // Add to health monitoring
+      if (healthMonitor) {
+        healthMonitor.addServer(server);
+      }
+
+      // Save to config
+      if (configManager) {
+        configManager.addServer(server).catch(error => {
+          log.error('Failed to save discovered server:', error);
+        });
+      }
+    });
+
+    clientDiscovery.on('connected', (server) => {
+      log.info(`Connected to server: ${server.name}`);
+      sendToRenderer('network-connected', { server });
+      
+      // Set as connected server in health monitor
+      if (healthMonitor) {
+        healthMonitor.setConnectedServer(server);
+      }
+    });
+
+    clientDiscovery.on('disconnected', (serverId) => {
+      log.info(`Disconnected from server: ${serverId}`);
+      sendToRenderer('network-disconnected', { serverId });
+      
+      // Clear connected server in health monitor
+      if (healthMonitor) {
+        healthMonitor.setConnectedServer(null);
+      }
+    });
+
+    clientDiscovery.on('discovery-complete', (servers) => {
+      log.info(`Discovery complete. Found ${servers.length} servers`);
+      sendToRenderer('network-discovery-complete', { servers });
+    });
+
+    clientDiscovery.on('error', (error) => {
+      log.error('Client discovery error:', error);
+      sendToRenderer('network-error', { error: error.message, source: 'client-discovery' });
+    });
+
+    await clientDiscovery.start();
+    log.info('Client discovery service started');
+  } catch (error) {
+    log.error('Failed to start client discovery:', error);
   }
 }
 
@@ -88,8 +233,8 @@ function createWindow() {
       mainWindow.webContents.openDevTools();
     }
     
-    // Start service discovery after window is ready
-    startServiceDiscovery();
+    // Start network discovery after window is ready
+    initializeNetworkDiscovery();
   });
 
   // Wait for server to start, then load the URL
@@ -379,11 +524,9 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('window-all-closed', () => {
-  // Clean up UDP discovery
-  if (udpDiscovery) {
-    udpDiscovery.pause();
-  }
+app.on('window-all-closed', async () => {
+  // Clean up network discovery services
+  await cleanupNetworkDiscovery();
   
   // Kill server process
   if (serverProcess) {
@@ -436,14 +579,223 @@ app.on('certificate-error', (event, webContents, url, error, certificate, callba
 });
 
 // Cleanup on exit
-process.on('SIGTERM', () => {
+// Helper function to send messages to renderer process
+function sendToRenderer(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
+
+// Network discovery cleanup function
+async function cleanupNetworkDiscovery() {
+  try {
+    if (serverDiscovery) {
+      await serverDiscovery.stop();
+      log.info('Server discovery stopped');
+    }
+    
+    if (clientDiscovery) {
+      await clientDiscovery.stop();
+      log.info('Client discovery stopped');
+    }
+    
+    if (healthMonitor) {
+      await healthMonitor.stop();
+      log.info('Health monitor stopped');
+    }
+  } catch (error) {
+    log.error('Error during network discovery cleanup:', error);
+  }
+}
+
+// IPC handlers for network discovery
+ipcMain.handle('network-get-status', async () => {
+  try {
+    const status = {
+      mode: networkMode,
+      servers: [],
+      connectedServer: null,
+      healthStatus: null,
+    };
+
+    if (clientDiscovery) {
+      status.servers = clientDiscovery.getDiscoveredServers();
+      status.connectedServer = clientDiscovery.getConnectedServer();
+    } else if (serverDiscovery) {
+      status.servers = serverDiscovery.getDiscoveredServers();
+    }
+
+    if (healthMonitor) {
+      status.healthStatus = healthMonitor.getHealthStatus();
+    }
+
+    return status;
+  } catch (error) {
+    log.error('Error getting network status:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-discover-servers', async () => {
+  try {
+    if (clientDiscovery) {
+      return await clientDiscovery.discoverServers();
+    }
+    return [];
+  } catch (error) {
+    log.error('Error discovering servers:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-connect-server', async (event, serverId) => {
+  try {
+    if (!clientDiscovery) {
+      throw new Error('Client discovery not available');
+    }
+
+    const servers = clientDiscovery.getDiscoveredServers();
+    const server = servers.find(s => s.id === serverId);
+    
+    if (!server) {
+      throw new Error('Server not found');
+    }
+
+    return await clientDiscovery.connectToServer(server);
+  } catch (error) {
+    log.error('Error connecting to server:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-disconnect', async () => {
+  try {
+    if (clientDiscovery) {
+      clientDiscovery.disconnect();
+    }
+    return true;
+  } catch (error) {
+    log.error('Error disconnecting:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-set-mode', async (event, mode) => {
+  try {
+    if (!['server', 'client', 'auto'].includes(mode)) {
+      throw new Error('Invalid network mode');
+    }
+
+    networkMode = mode;
+    
+    // Update config
+    if (configManager) {
+      const config = await configManager.loadConfig();
+      config.mode = mode;
+      await configManager.saveConfig(config);
+    }
+
+    // Restart network discovery with new mode
+    await cleanupNetworkDiscovery();
+    await initializeNetworkDiscovery();
+    
+    return true;
+  } catch (error) {
+    log.error('Error setting network mode:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-get-config', async () => {
+  try {
+    if (configManager) {
+      return await configManager.loadConfig();
+    }
+    return null;
+  } catch (error) {
+    log.error('Error getting network config:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-save-server', async (event, server, options = {}) => {
+  try {
+    if (configManager) {
+      await configManager.addServer(server, options);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    log.error('Error saving server:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-remove-server', async (event, serverId) => {
+  try {
+    if (configManager) {
+      await configManager.removeServer(serverId);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    log.error('Error removing server:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-get-connection-history', async (event, serverId) => {
+  try {
+    if (configManager) {
+      return await configManager.getConnectionHistory(serverId);
+    }
+    return [];
+  } catch (error) {
+    log.error('Error getting connection history:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-export-config', async () => {
+  try {
+    if (configManager) {
+      return await configManager.exportConfig();
+    }
+    return null;
+  } catch (error) {
+    log.error('Error exporting config:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('network-import-config', async (event, configData) => {
+  try {
+    if (configManager) {
+      await configManager.importConfig(configData);
+      
+      // Restart network discovery to apply new config
+      await cleanupNetworkDiscovery();
+      await initializeNetworkDiscovery();
+      
+      return true;
+    }
+    return false;
+  } catch (error) {
+    log.error('Error importing config:', error);
+    throw error;
+  }
+});
+
+process.on('SIGTERM', async () => {
+  await cleanupNetworkDiscovery();
   if (serverProcess) {
     serverProcess.kill('SIGTERM');
   }
   app.quit();
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
+  await cleanupNetworkDiscovery();
   if (serverProcess) {
     serverProcess.kill('SIGINT');
   }
