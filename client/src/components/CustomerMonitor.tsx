@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { useTranslation } from '@/lib/i18n';
 import { Bell, Clock, ChefHat, CheckCircle, Wifi, WifiOff } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
 import type { OrderWithDetails } from '@shared/schema';
@@ -145,6 +146,9 @@ export function CustomerMonitor() {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-blue-200/50 p-4 shadow-sm">
         <div className="text-center">
+          <div className="mb-3">
+            <Logo variant="customer" data-testid="customer-logo" />
+          </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">{t('customer.title')}</h1>
           <p className="text-gray-700 text-lg">{t('customer.subtitle')}</p>
           <div className="flex items-center justify-center mt-2 space-x-3">
