@@ -448,8 +448,16 @@ export function AdminPanel() {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100">
       <div className="p-6">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">{t('admin.title')}</h1>
-          <p className="text-lg text-gray-600">{t('admin.subtitle')}</p>
+          <div className="flex items-center space-x-4 mb-4">
+            {/* Logo Section */}
+            <Logo variant="admin" data-testid="admin-header-logo" />
+            
+            {/* Title Section */}
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">{t('admin.title')}</h1>
+              <p className="text-lg text-gray-600">{t('admin.subtitle')}</p>
+            </div>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
