@@ -350,16 +350,6 @@ export function KitchenDisplay() {
                         />
                       ))}
                     
-                    {canStartOrder(order) && (
-                            <Button 
-                              onClick={() => startOrder(order.id)}
-                              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                              data-testid={`start-order-${order.id}`}
-                            >
-                              <Play className="w-4 h-4 mr-2" />
-                              {t('kds.start')}
-                            </Button>
-                          )}
                           </CardContent>
                           </div>
                         </Card>
