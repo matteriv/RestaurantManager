@@ -4,11 +4,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
-import { useSetupStatus } from "@/hooks/useSystemConfig";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
-import ConfigurationWizardPage from "@/pages/ConfigurationWizard";
 import { PosInterface } from "@/components/PosInterface";
 import { KitchenDisplay } from "@/components/KitchenDisplay";
 import { CustomerMonitor } from "@/components/CustomerMonitor";
@@ -18,43 +16,14 @@ import { WebSocketProvider } from "@/contexts/WebSocketContext";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
-  const { isSetupComplete, isLoading: isSetupLoading } = useSetupStatus();
-
-  // Show setup wizard for first-run or when explicitly requested
-  if (!isSetupLoading && !isSetupComplete) {
-    return (
-      <Switch>
-        <Route path="/" component={ConfigurationWizardPage} />
-        <Route path="/setup" component={ConfigurationWizardPage} />
-        <Route path="/reconfigure">
-          {() => <ConfigurationWizardPage isReconfigure={true} />}
-        </Route>
-        <Route path="/customer">
-          <WebSocketProvider clientType="customer">
-            <CustomerMonitor />
-          </WebSocketProvider>
-        </Route>
-        <Route component={ConfigurationWizardPage} />
-      </Switch>
-    );
-  }
 
   if (isLoading || !isAuthenticated) {
     return (
       <Switch>
         <Route path="/" component={Landing} />
-        <Route path="/setup" component={ConfigurationWizardPage} />
-        <Route path="/reconfigure">
-          {() => <ConfigurationWizardPage isReconfigure={true} />}
-        </Route>
         <Route path="/customer">
           <WebSocketProvider clientType="customer">
             <CustomerMonitor />
-          </WebSocketProvider>
-        </Route>
-        <Route path="/kds">
-          <WebSocketProvider clientType="kds">
-            <KitchenDisplay />
           </WebSocketProvider>
         </Route>
         <Route component={NotFound} />
@@ -65,21 +34,12 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/setup" component={ConfigurationWizardPage} />
-      <Route path="/reconfigure">
-        {() => <ConfigurationWizardPage isReconfigure={true} />}
-      </Route>
       <Route path="/pos">
         <WebSocketProvider clientType="pos">
           <PosInterface />
         </WebSocketProvider>
       </Route>
       <Route path="/kitchen">
-        <WebSocketProvider clientType="kds">
-          <KitchenDisplay />
-        </WebSocketProvider>
-      </Route>
-      <Route path="/kds">
         <WebSocketProvider clientType="kds">
           <KitchenDisplay />
         </WebSocketProvider>

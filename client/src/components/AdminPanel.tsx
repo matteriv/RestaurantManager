@@ -93,7 +93,8 @@ export function AdminPanel() {
   // Mutations
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest({ url: '/api/menu/items', method: 'POST', body: data });
+      const response = await apiRequest('POST', '/api/menu/items', data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/items'] });
@@ -104,19 +105,12 @@ export function AdminPanel() {
         description: 'Articolo creato con successo',
       });
     },
-    onError: (error) => {
-      console.error('Menu item creation error:', error);
-      toast({
-        title: 'Errore',
-        description: 'Errore durante la creazione dell\'articolo',
-        variant: 'destructive',
-      });
-    },
   });
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return await apiRequest('PATCH', `/api/menu/items/${id}`, data);
+      const response = await apiRequest('PATCH', `/api/menu/items/${id}`, data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/items'] });
@@ -140,7 +134,8 @@ export function AdminPanel() {
 
   const deleteItemMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest('DELETE', `/api/menu/items/${id}`);
+      const response = await apiRequest('DELETE', `/api/menu/items/${id}`);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/items'] });
@@ -153,7 +148,8 @@ export function AdminPanel() {
 
   const createCategoryMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('POST', '/api/menu/categories', data);
+      const response = await apiRequest('POST', '/api/menu/categories', data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/menu/categories'] });
@@ -168,7 +164,8 @@ export function AdminPanel() {
 
   const createTableMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('POST', '/api/tables', data);
+      const response = await apiRequest('POST', '/api/tables', data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
@@ -183,7 +180,8 @@ export function AdminPanel() {
 
   const createDepartmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('POST', '/api/departments', data);
+      const response = await apiRequest('POST', '/api/departments', data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
@@ -199,7 +197,8 @@ export function AdminPanel() {
 
   const updateDepartmentMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return await apiRequest('PATCH', `/api/departments/${id}`, data);
+      const response = await apiRequest('PATCH', `/api/departments/${id}`, data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
@@ -215,7 +214,8 @@ export function AdminPanel() {
 
   const deleteDepartmentMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest('DELETE', `/api/departments/${id}`);
+      const response = await apiRequest('DELETE', `/api/departments/${id}`);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/departments'] });
@@ -229,7 +229,8 @@ export function AdminPanel() {
   // Reset system mutation
   const resetSystemMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('POST', '/api/admin/reset-system');
+      const response = await apiRequest('POST', '/api/admin/reset-system');
+      return response.json();
     },
     onSuccess: () => {
       // Invalidate all queries to refresh data
@@ -276,11 +277,6 @@ export function AdminPanel() {
       price: data.price.toString(),
       prepTimeMinutes: parseInt(data.prepTimeMinutes) || 0,
       isAvailable: true,
-      // Convert inventory fields to numbers, handle empty strings
-      currentStock: data.currentStock ? parseInt(data.currentStock) : 0,
-      minStock: data.minStock ? parseInt(data.minStock) : 0,
-      // Handle departmentId - convert empty string to null to avoid foreign key constraint error
-      departmentId: data.departmentId && data.departmentId !== '' ? data.departmentId : null,
     };
 
     if (editingItem) {
@@ -567,129 +563,110 @@ export function AdminPanel() {
                       Nuovo Articolo
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-lg">
                     <DialogHeader>
                       <DialogTitle>{editingItem ? 'Modifica Articolo' : 'Nuovo Articolo'}</DialogTitle>
                     </DialogHeader>
-                    
-                    <form onSubmit={itemForm.handleSubmit(onSubmitItem)} className="space-y-3">
-                      {/* Basic Information - 2 columns */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="itemName">Nome</Label>
-                          <Input id="itemName" {...itemForm.register('name', { required: true })} data-testid="input-item-name" />
-                        </div>
-                        <div>
-                          <Label htmlFor="itemPrice">Prezzo (€)</Label>
-                          <Input type="number" step="0.01" id="itemPrice" {...itemForm.register('price', { required: true })} data-testid="input-item-price" />
-                        </div>
+                    <form onSubmit={itemForm.handleSubmit(onSubmitItem)} className="space-y-4">
+                      <div>
+                        <Label htmlFor="itemName">Nome</Label>
+                        <Input id="itemName" {...itemForm.register('name', { required: true })} />
                       </div>
-
                       <div>
                         <Label htmlFor="itemDescription">Descrizione</Label>
-                        <Textarea id="itemDescription" {...itemForm.register('description')} className="resize-none h-20" data-testid="textarea-item-description" />
+                        <Textarea id="itemDescription" {...itemForm.register('description')} />
                       </div>
-
-                      {/* Categories and Station - 3 columns */}
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <Label htmlFor="categoryId">Categoria</Label>
-                          <Controller
-                            name="categoryId"
-                            control={itemForm.control}
-                            defaultValue=""
-                            render={({ field }) => (
-                              <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger data-testid="select-category">
-                                  <SelectValue placeholder="Seleziona categoria" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {categories.map(category => (
-                                    <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="station">Stazione</Label>
-                          <Controller
-                            name="station"
-                            control={itemForm.control}
-                            defaultValue=""
-                            render={({ field }) => (
-                              <Select value={field.value} onValueChange={field.onChange}>
-                                <SelectTrigger data-testid="select-station">
-                                  <SelectValue placeholder="Seleziona stazione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {stations.map(station => (
-                                    <SelectItem key={station.value} value={station.value}>{station.label}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="prepTime">Tempo Prep. (min)</Label>
-                          <Input type="number" id="prepTime" {...itemForm.register('prepTimeMinutes')} data-testid="input-prep-time" />
-                        </div>
+                      <div>
+                        <Label htmlFor="itemPrice">Prezzo (€)</Label>
+                        <Input type="number" step="0.01" id="itemPrice" {...itemForm.register('price', { required: true })} />
+                      </div>
+                      <div>
+                        <Label htmlFor="categoryId">Categoria</Label>
+                        <Controller
+                          name="categoryId"
+                          control={itemForm.control}
+                          defaultValue=""
+                          render={({ field }) => (
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleziona categoria" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories.map(category => (
+                                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="station">Stazione</Label>
+                        <Controller
+                          name="station"
+                          control={itemForm.control}
+                          defaultValue=""
+                          render={({ field }) => (
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleziona stazione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {stations.map(station => (
+                                  <SelectItem key={station.value} value={station.value}>{station.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="prepTime">Tempo Preparazione (minuti)</Label>
+                        <Input type="number" id="prepTime" {...itemForm.register('prepTimeMinutes')} />
                       </div>
                       
-                      {/* Inventory Management Section */}
-                      <div className="border-t pt-3">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-medium">Gestione Inventario</h4>
-                          <div className="flex items-center space-x-2">
-                            <input type="checkbox" id="trackInventory" {...itemForm.register('trackInventory')} data-testid="checkbox-track-inventory" />
-                            <Label htmlFor="trackInventory" className="text-sm">Abilita controllo inventario</Label>
-                          </div>
+                      {/* Gestione Inventario */}
+                      <div className="border-t pt-4">
+                        <h4 className="font-medium mb-3">Gestione Inventario</h4>
+                        <div className="flex items-center space-x-2 mb-3">
+                          <input type="checkbox" id="trackInventory" {...itemForm.register('trackInventory')} />
+                          <Label htmlFor="trackInventory">Abilita controllo inventario</Label>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label htmlFor="currentStock">Giacenza Attuale</Label>
-                            <Input type="number" id="currentStock" {...itemForm.register('currentStock')} data-testid="input-current-stock" />
+                            <Input type="number" id="currentStock" {...itemForm.register('currentStock')} />
                           </div>
                           <div>
                             <Label htmlFor="minStock">Giacenza Minima</Label>
-                            <Input type="number" id="minStock" {...itemForm.register('minStock')} data-testid="input-min-stock" />
+                            <Input type="number" id="minStock" {...itemForm.register('minStock')} />
                           </div>
-                          <div>
-                            <Label htmlFor="departmentId">Reparto</Label>
-                            <Controller
-                              name="departmentId"
-                              control={itemForm.control}
-                              defaultValue=""
-                              render={({ field }) => (
-                                <Select value={field.value} onValueChange={field.onChange}>
-                                  <SelectTrigger data-testid="select-department">
-                                    <SelectValue placeholder="Seleziona reparto" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {departments.map(department => (
-                                      <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )}
-                            />
-                          </div>
+                        </div>
+                        
+                        <div className="mt-3">
+                          <Label htmlFor="departmentId">Reparto</Label>
+                          <Controller
+                            name="departmentId"
+                            control={itemForm.control}
+                            defaultValue=""
+                            render={({ field }) => (
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Seleziona reparto" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {departments.map(department => (
+                                    <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          />
                         </div>
                       </div>
                       
-                      {/* Dialog Footer with Save Button - Now inside form */}
-                      <div className="flex justify-end pt-4 border-t bg-white sticky bottom-0">
-                        <Button 
-                          type="submit" 
-                          disabled={createItemMutation.isPending || updateItemMutation.isPending}
-                          data-testid="button-save-item"
-                        >
-                          {createItemMutation.isPending || updateItemMutation.isPending ? 'Salvando...' : t('common.save')}
-                        </Button>
-                      </div>
+                      <Button type="submit" className="w-full">{t('common.save')}</Button>
                     </form>
                   </DialogContent>
                 </Dialog>

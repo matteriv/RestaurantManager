@@ -19,7 +19,7 @@ interface OrderItem extends InsertOrderLine {
 }
 
 export function PosInterface() {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderNotes, setOrderNotes] = useState('');
   const [showNotesDialog, setShowNotesDialog] = useState(false);
@@ -37,15 +37,12 @@ export function PosInterface() {
   });
 
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
-    queryKey: ['/api/menu/items', selectedCategory || 'all'],
+    queryKey: ['/api/menu/items', selectedCategory],
     queryFn: async () => {
-      const categoryParam = selectedCategory || 'all';
-      const url = categoryParam === 'all' ? '/api/menu/items' : `/api/menu/items?categoryId=${categoryParam}`;
-      const data = await apiRequest('GET', url);
-      return data;
+      const response = await apiRequest('GET', selectedCategory ? `/api/menu/items?categoryId=${selectedCategory}` : '/api/menu/items');
+      return response.json();
     },
     refetchInterval: 15000, // Refresh every 15 seconds for products
-    enabled: true, // Always enable the query
   });
 
 
@@ -53,7 +50,8 @@ export function PosInterface() {
   const { data: dailySales = { total: 0, orderCount: 0, avgOrderValue: 0 } } = useQuery({
     queryKey: ['/api/analytics/daily-sales', new Date().toISOString().split('T')[0]],
     queryFn: async () => {
-      return await apiRequest('GET', `/api/analytics/daily-sales?date=${new Date().toISOString().split('T')[0]}`);
+      const response = await apiRequest('GET', `/api/analytics/daily-sales?date=${new Date().toISOString().split('T')[0]}`);
+      return response.json();
     },
     refetchInterval: 60000, // Refresh every minute
   });
@@ -61,7 +59,8 @@ export function PosInterface() {
   // Mutations
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return await apiRequest('POST', '/api/orders', orderData);
+      const response = await apiRequest('POST', '/api/orders', orderData);
+      return response.json();
     },
     onSuccess: () => {
       setOrderItems([]);
@@ -85,7 +84,8 @@ export function PosInterface() {
   // Payment mutation
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      return await apiRequest('POST', '/api/payments/process', paymentData);
+      const response = await apiRequest('POST', '/api/payments/process', paymentData);
+      return response.json();
     },
     onSuccess: () => {
       // Capture receipt data before clearing UI state
@@ -126,12 +126,10 @@ export function PosInterface() {
 
   // Set default category
   useEffect(() => {
-    if (categories.length > 0 && selectedCategory === null) {
+    if (categories.length > 0 && !selectedCategory) {
       setSelectedCategory(categories[0].id);
     }
   }, [categories, selectedCategory]);
-
-  // Debug logging for selectedCategory changes
 
   // Handle WebSocket messages
   useEffect(() => {

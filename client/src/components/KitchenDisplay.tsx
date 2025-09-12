@@ -83,7 +83,8 @@ export function KitchenDisplay() {
   // Update order line status mutation
   const updateOrderLineMutation = useMutation({
     mutationFn: async ({ orderLineId, status }: { orderLineId: string; status: string }) => {
-      return await apiRequest('PATCH', `/api/order-lines/${orderLineId}/status`, { status });
+      const response = await apiRequest('PATCH', `/api/order-lines/${orderLineId}/status`, { status });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
@@ -100,7 +101,8 @@ export function KitchenDisplay() {
   // Start order mutation
   const startOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      return await apiRequest('PATCH', `/api/orders/${orderId}/status`, { status: 'preparing' });
+      const response = await apiRequest('PATCH', `/api/orders/${orderId}/status`, { status: 'preparing' });
+      return response.json();
     },
     onSuccess: (data, orderId) => {
       setActiveOrders(prev => ({ ...prev, [orderId]: new Date() }));
@@ -111,7 +113,8 @@ export function KitchenDisplay() {
   // Mark order ready mutation
   const markReadyMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      return await apiRequest('PATCH', `/api/orders/${orderId}/status`, { status: 'ready' });
+      const response = await apiRequest('PATCH', `/api/orders/${orderId}/status`, { status: 'ready' });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
