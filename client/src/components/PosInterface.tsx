@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Logo } from '@/components/ui/logo';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
@@ -365,8 +366,16 @@ export function PosInterface() {
       <div className="w-3/4 bg-card border-r border-border">
         {/* Daily Sales Summary */}
         <div className="border-b border-border bg-blue-50 px-4 py-2">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between w-full">
+            {/* Logo Section */}
+            <div className="flex items-center">
+              <Logo variant="pos" data-testid="pos-logo" />
+            </div>
+            
+            {/* Title Section */}
             <h3 className="text-sm font-medium text-blue-900">Vendite di Oggi</h3>
+            
+            {/* Stats Section */}
             <div className="flex items-center space-x-6 text-sm">
               <div className="flex items-center space-x-2">
                 <span className="text-blue-700">Ordini:</span>
