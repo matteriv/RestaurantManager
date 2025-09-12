@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
+import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
 
 interface WebSocketClient extends WebSocket {
   isAlive?: boolean;
@@ -783,53 +784,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Available Printers Discovery route
+  // Available Printers Discovery route (Real OS-level detection)
   app.get('/api/printers/available', isAuthenticated, async (req: any, res) => {
     try {
-      // Mock data for available printers - in real implementation this would
-      // scan for network/USB/Bluetooth printers based on connection type
-      const mockPrinters = [
-        {
-          name: "EPSON_TM_T20",
-          description: "EPSON TM-T20 Receipt Printer",
-          connectionType: "network",
-          ipAddress: "192.168.1.100",
-          status: "online"
-        },
-        {
-          name: "STAR_TSP143",
-          description: "Star TSP143III Receipt Printer",
-          connectionType: "usb",
-          port: "USB001",
-          status: "online"
-        },
-        {
-          name: "CITIZEN_CT_S310II",
-          description: "Citizen CT-S310II Thermal Printer",
-          connectionType: "bluetooth",
-          macAddress: "00:11:22:33:44:55",
-          status: "offline"
-        },
-        {
-          name: "KITCHEN_PRINTER_1",
-          description: "Kitchen Order Printer 1",
-          connectionType: "network",
-          ipAddress: "192.168.1.101",
-          status: "online"
-        },
-        {
-          name: "BAR_PRINTER",
-          description: "Bar Station Printer",
-          connectionType: "network",
-          ipAddress: "192.168.1.102",
-          status: "online"
-        }
-      ];
-
-      res.json(mockPrinters);
+      const printers = await getAvailablePrinters();
+      
+      // Add debug info when requested
+      if (req.query.debug === 'true') {
+        const cacheStatus = getCacheStatus();
+        res.json({
+          printers,
+          debug: {
+            platform: require('os').platform(),
+            cache: cacheStatus,
+            timestamp: new Date().toISOString()
+          }
+        });
+      } else {
+        res.json(printers);
+      }
     } catch (error) {
       console.error("Error fetching available printers:", error);
       res.status(500).json({ message: "Failed to fetch available printers" });
+    }
+  });
+
+  // Clear printer cache endpoint (for debugging and refresh)
+  app.post('/api/printers/refresh', isAuthenticated, async (req: any, res) => {
+    try {
+      clearPrinterCache();
+      const printers = await getAvailablePrinters();
+      res.json({ 
+        message: "Printer cache cleared and refreshed", 
+        printers,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error refreshing printers:", error);
+      res.status(500).json({ message: "Failed to refresh printers" });
     }
   });
 
