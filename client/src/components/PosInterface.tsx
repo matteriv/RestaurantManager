@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Logo } from '@/components/ui/logo';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
+import { useAutoPrint } from '@/hooks/useAutoPrint';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer, Settings } from 'lucide-react';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer, Settings, PrinterCheck, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine, PrinterTerminal, InsertPrinterTerminal } from '@shared/schema';
 
 interface OrderItem extends InsertOrderLine {
@@ -45,6 +46,13 @@ export function PosInterface() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { lastMessage } = useWebSocketContext();
+  
+  // Auto-print integration
+  const autoPrint = useAutoPrint({
+    showToastNotifications: true,
+    autoRetryOnError: true,
+    retryDelay: 3000,
+  });
 
   // Fetch data with auto-refresh
   const { data: categories = [] } = useQuery<MenuCategory[]>({
@@ -135,15 +143,15 @@ export function PosInterface() {
     },
   });
 
-  // Payment mutation
+  // Payment mutation with auto-print integration
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
       const response = await apiRequest('POST', '/api/payments/process', paymentData);
       return response.json();
     },
-    onSuccess: () => {
-      // Capture receipt data before clearing UI state
-      const receiptData = {
+    onSuccess: async (paymentResponse) => {
+      // Capture order data before clearing UI state
+      const orderData = {
         items: orderItems,
         notes: orderNotes,
         subtotal: calculateSubtotal(),
@@ -151,23 +159,40 @@ export function PosInterface() {
         total: calculateTotal()
       };
       
-      // Clear UI state after capturing receipt data
+      // Clear UI state after capturing data
       setOrderItems([]);
       setOrderNotes('');
       setShowPaymentDialog(false);
       
       toast({
         title: "Payment processed",
-        description: "Order completed and receipt printed successfully.",
+        description: "Processing automatic printing...",
       });
       
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
       
-      // Print receipt with captured data to avoid using cleared state
-      setTimeout(() => {
-        printReceipt(receiptData);
-      }, 100);
+      // Trigger auto-print if payment response contains receipt URLs
+      if (autoPrint.isEnabled && (paymentResponse.receiptUrls || paymentResponse.departmentReceiptUrls)) {
+        try {
+          await autoPrint.actions.processPaymentPrint(
+            terminalId,
+            paymentResponse,
+            orderData
+          );
+        } catch (error) {
+          console.error('Auto-print failed:', error);
+          // Fallback to manual printing if auto-print fails completely
+          setTimeout(() => {
+            printReceipt(orderData);
+          }, 100);
+        }
+      } else if (!autoPrint.isEnabled) {
+        // Manual printing when auto-print is disabled
+        setTimeout(() => {
+          printReceipt(orderData);
+        }, 100);
+      }
     },
     onError: (error) => {
       toast({
@@ -433,19 +458,60 @@ export function PosInterface() {
             <div className="flex items-center space-x-3">
               <Logo variant="pos" data-testid="pos-logo" />
               
-              {/* Discrete Printer Configuration Button */}
-              <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="p-2 h-8 w-8 text-blue-600 hover:bg-blue-100" 
-                    data-testid="printer-config-button"
-                    title="Configurazione Stampante"
+              {/* Auto-Print Status Indicator */}
+              <div className="flex items-center space-x-2">
+                {autoPrint.state.isProcessing && (
+                  <div className="flex items-center space-x-1 px-2 py-1 bg-blue-100 rounded-full text-blue-700">
+                    <RotateCcw className="h-3 w-3 animate-spin" />
+                    <span className="text-xs font-medium">Stampa...</span>
+                  </div>
+                )}
+                
+                {autoPrint.state.canRetry && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => autoPrint.actions.retryFailedJobs()}
+                    className="p-1 h-6 w-6 text-orange-600 hover:bg-orange-100"
+                    title="Riprova stampe fallite"
+                    data-testid="retry-print-button"
                   >
-                    <Printer className="h-4 w-4" />
+                    <AlertCircle className="h-3 w-3" />
                   </Button>
-                </DialogTrigger>
+                )}
+                
+                {autoPrint.state.successfulJobs > 0 && !autoPrint.state.isProcessing && !autoPrint.state.canRetry && (
+                  <div className="flex items-center space-x-1 px-2 py-1 bg-green-100 rounded-full text-green-700">
+                    <CheckCircle2 className="h-3 w-3" />
+                    <span className="text-xs font-medium">{autoPrint.state.successfulJobs} stampata/e</span>
+                  </div>
+                )}
+                
+                {/* Auto-Print Toggle */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => autoPrint.isEnabled ? autoPrint.disableAutoPrint() : autoPrint.enableAutoPrint()}
+                  className={`p-2 h-8 w-8 ${autoPrint.isEnabled ? 'text-green-600 hover:bg-green-100' : 'text-gray-400 hover:bg-gray-100'}`}
+                  title={autoPrint.isEnabled ? 'Stampa automatica attiva' : 'Stampa automatica disattivata'}
+                  data-testid="auto-print-toggle"
+                >
+                  <PrinterCheck className="h-4 w-4" />
+                </Button>
+                
+                {/* Discrete Printer Configuration Button */}
+                <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="p-2 h-8 w-8 text-blue-600 hover:bg-blue-100" 
+                      data-testid="printer-config-button"
+                      title="Configurazione Stampante"
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]" data-testid="printer-config-dialog">
                   <DialogHeader>
                     <DialogTitle className="flex items-center space-x-2">
@@ -817,12 +883,77 @@ export function PosInterface() {
                   
                   <div className="space-y-3">
                     <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
-                      <Printer className="w-8 h-8 mr-3 text-blue-600" />
+                      <div className="flex items-center mr-3">
+                        {autoPrint.isEnabled ? (
+                          <PrinterCheck className="w-8 h-8 text-green-600" />
+                        ) : (
+                          <Printer className="w-8 h-8 text-blue-600" />
+                        )}
+                      </div>
                       <div>
                         <h4 className="font-medium text-blue-900">Print Receipt</h4>
-                        <p className="text-sm text-blue-700">Receipt will be printed automatically</p>
+                        <p className="text-sm text-blue-700">
+                          {autoPrint.isEnabled 
+                            ? 'Receipt will be printed automatically'
+                            : 'Receipt will require manual printing'
+                          }
+                        </p>
+                        {autoPrint.state.isProcessing && (
+                          <div className="flex items-center mt-1 text-blue-600">
+                            <RotateCcw className="h-3 w-3 animate-spin mr-1" />
+                            <span className="text-xs">Printing...</span>
+                          </div>
+                        )}
                       </div>
                     </div>
+                    
+                    {/* Print Status Summary */}
+                    {(autoPrint.state.totalJobs > 0 || autoPrint.state.canRetry) && (
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Stato Stampe</span>
+                          {autoPrint.state.canRetry && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => autoPrint.actions.retryFailedJobs()}
+                              className="text-xs h-6"
+                              data-testid="retry-all-prints"
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Riprova
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-center">
+                            <div className="font-medium text-blue-600">{autoPrint.state.totalJobs}</div>
+                            <div className="text-gray-500">Totale</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium text-green-600">{autoPrint.state.successfulJobs}</div>
+                            <div className="text-gray-500">Successo</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-medium text-red-600">{autoPrint.state.failedJobs}</div>
+                            <div className="text-gray-500">Fallite</div>
+                          </div>
+                        </div>
+                        
+                        {autoPrint.state.errors.length > 0 && (
+                          <div className="mt-2 text-xs text-red-600">
+                            <div className="font-medium">Errori:</div>
+                            {autoPrint.state.errors.slice(0, 2).map((error, index) => (
+                              <div key={index} className="truncate">{error}</div>
+                            ))}
+                            {autoPrint.state.errors.length > 2 && (
+                              <div className="text-gray-500">... e {autoPrint.state.errors.length - 2} altri</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex space-x-2 pt-4">
@@ -836,10 +967,12 @@ export function PosInterface() {
                     <Button 
                       className="flex-1 bg-success text-white hover:bg-success/90"
                       onClick={processPayment}
-                      disabled={paymentMutation.isPending}
+                      disabled={paymentMutation.isPending || autoPrint.state.isProcessing}
                       data-testid="confirm-payment"
                     >
-                      {paymentMutation.isPending ? 'Processing...' : 'Process Payment & Print'}
+                      {paymentMutation.isPending ? 'Processing Payment...' : 
+                       autoPrint.state.isProcessing ? 'Processing Print...' : 
+                       autoPrint.isEnabled ? 'Process Payment & Auto-Print' : 'Process Payment & Print'}
                     </Button>
                   </div>
                 </div>
