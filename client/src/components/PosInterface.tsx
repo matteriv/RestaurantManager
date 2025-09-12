@@ -9,8 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, GripVertical, ShoppingCart, Printer } from 'lucide-react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer } from 'lucide-react';
 import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine } from '@shared/schema';
 
 interface OrderItem extends InsertOrderLine {
@@ -211,24 +210,6 @@ export function PosInterface() {
     return Utensils;
   };
 
-  // Handle drag end for adding items to order
-  const handleDragEnd = (result: any) => {
-    if (!result.destination) return;
-
-    if (result.source.droppableId === 'menu-items' && result.destination.droppableId === 'order-items') {
-      // Adding item from menu to order
-      const draggedItem = menuItems.find(item => item.id === result.draggableId);
-      if (draggedItem) {
-        addItemToOrder(draggedItem);
-      }
-    } else if (result.source.droppableId === 'order-items' && result.destination.droppableId === 'order-items') {
-      // Reordering items within the order
-      const items = Array.from(orderItems);
-      const [reorderedItem] = items.splice(result.source.index, 1);
-      items.splice(result.destination.index, 0, reorderedItem);
-      setOrderItems(items);
-    }
-  };
 
   const calculateSubtotal = () => {
     return orderItems.reduce((sum, item) => sum + Number(item.totalPrice), 0);
@@ -379,7 +360,6 @@ export function PosInterface() {
   };
 
   return (
-    <DragDropContext onDragEnd={handleDragEnd}>
       <div className="flex h-screen bg-background">
       {/* Left Panel - Menu */}
       <div className="w-3/4 bg-card border-r border-border">
@@ -433,37 +413,25 @@ export function PosInterface() {
         </div>
 
         {/* Menu Items Grid */}
-        <Droppable droppableId="menu-items" isDropDisabled={true}>
-          {(provided) => (
-            <div 
-              {...provided.droppableProps}
-              ref={provided.innerRef}
-              className="p-1 grid grid-cols-4 gap-0.5 overflow-y-auto"
-            >
+            <div className="p-4 grid grid-cols-3 gap-4">
           {menuItems.map((item, index) => {
             const isOutOfStock = item.trackInventory && (item.currentStock || 0) <= 0;
             const isLowStock = item.trackInventory && (item.currentStock || 0) > 0 && (item.currentStock || 0) <= (item.minStock || 0);
             const hasStock = item.trackInventory && (item.currentStock || 0) > (item.minStock || 0);
             
             return (
-              <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={!!isOutOfStock}>
-                {(provided, snapshot) => (
                   <Card 
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
                     className={`
-                      transition-all relative h-16 cursor-pointer
+                      transition-all relative h-24 cursor-pointer border-2
                       ${isOutOfStock 
                         ? 'opacity-50 cursor-not-allowed bg-gray-50' 
-                        : 'hover:shadow-lg hover:scale-105'
+                        : 'hover:shadow-lg hover:border-primary/50'
                       }
-                      ${snapshot.isDragging ? 'shadow-2xl rotate-6' : ''}
                     `}
                     onClick={() => !isOutOfStock && addItemToOrder(item)}
                     data-testid={`menu-item-${item.id}`}
                   >
-                <CardContent className="p-1.5">
+                <CardContent className="p-3">
                   <div className="text-left">
                     {/* Stock indicator badge */}
                     {item.trackInventory && (
@@ -482,14 +450,14 @@ export function PosInterface() {
                       </div>
                     )}
                     
-                    <h3 className={`font-medium text-xs ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
+                    <h3 className={`font-semibold text-sm ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
                       {item.name}
                     </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</p>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
                     
                     {/* Stock info */}
                     {item.trackInventory && (
-                      <div className="flex items-center space-x-1 mt-1 text-xs text-muted-foreground">
+                      <div className="flex items-center space-x-1 mt-1 text-sm text-muted-foreground">
                         <span>Stock: {item.currentStock || 0}</span>
                         {(item.minStock || 0) > 0 && (
                           <span>| Min: {item.minStock}</span>
@@ -497,31 +465,26 @@ export function PosInterface() {
                       </div>
                     )}
                     
-                    <div className="flex justify-between items-center mt-1">
-                      <span className={`text-sm font-semibold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className={`text-lg font-bold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>
                         €{Number(item.price).toFixed(2)}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-sm text-muted-foreground">
                         {(item.prepTimeMinutes || 0) > 0 ? `${item.prepTimeMinutes || 0} min` : 'Ready'}
                       </span>
                     </div>
                     
                     {isOutOfStock && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-10 rounded">
-                        <span className="text-sm font-medium text-red-600">Non Disponibile</span>
+                        <span className="text-lg font-bold text-red-600">Non Disponibile</span>
                       </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
-                )}
-              </Draggable>
             );
           })}
-          {provided.placeholder}
             </div>
-          )}
-        </Droppable>
       </div>
 
       {/* Right Panel - Order */}
@@ -534,90 +497,70 @@ export function PosInterface() {
         </div>
 
         {/* Order Items */}
-        <div className="flex-1 p-4 overflow-y-auto">
-          <Droppable droppableId="order-items">
-            {(provided, snapshot) => (
-              <div 
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                className={`space-y-1.5 min-h-32 p-2 rounded-lg border-2 border-dashed transition-colors ${
-                  snapshot.isDraggingOver ? 'border-primary bg-primary/5' : 'border-transparent'
-                }`}
-              >
+        <div className="flex-1 p-4">
+              <div className="space-y-3 min-h-32 p-3 rounded-lg border border-border">
             {orderItems.map((item, index) => (
-              <Draggable key={item.tempId} draggableId={item.tempId} index={index}>
-                {(provided, snapshot) => (
                   <Card 
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
                     key={item.tempId} 
-                    className={`bg-accent/50 ${snapshot.isDragging ? 'shadow-lg rotate-2' : ''}`} 
+                    className="bg-accent/50 border border-border" 
                     data-testid={`order-item-${item.tempId}`}
                   >
-                    <div {...provided.dragHandleProps} className="flex items-center justify-center p-1 cursor-grab active:cursor-grabbing">
-                      <GripVertical className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                <CardContent className="p-2">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="font-medium text-xs">{item.menuItem.name}</h4>
+                <CardContent className="p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold text-sm">{item.menuItem.name}</h4>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => removeItem(item.tempId)}
-                      className="text-destructive hover:bg-destructive/10 h-6 w-6 p-0"
+                      className="text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
                       data-testid={`remove-item-${item.tempId}`}
                     >
                       <X className="h-3 w-3" />
                     </Button>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => updateItemQuantity(item.tempId, -1)}
-                        className="h-5 w-5 p-0"
+                        className="h-6 w-6 p-0"
                         data-testid={`decrease-quantity-${item.tempId}`}
                       >
                         <Minus className="h-3 w-3" />
                       </Button>
-                      <span className="w-6 text-center text-xs" data-testid={`quantity-${item.tempId}`}>
+                      <span className="w-8 text-center text-sm font-semibold" data-testid={`quantity-${item.tempId}`}>
                         {item.quantity}
                       </span>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => updateItemQuantity(item.tempId, 1)}
-                        className="h-5 w-5 p-0"
+                        className="h-6 w-6 p-0"
                         data-testid={`increase-quantity-${item.tempId}`}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
                     </div>
-                    <span className="font-semibold text-primary text-xs" data-testid={`item-total-${item.tempId}`}>
+                    <span className="font-bold text-primary text-sm" data-testid={`item-total-${item.tempId}`}>
                       €{Number(item.totalPrice).toFixed(2)}
                     </span>
                   </div>
                   {item.notes && (
-                    <div className="mt-2 text-xs text-muted-foreground">
+                    <div className="mt-2 text-sm text-muted-foreground">
                       <Badge variant="secondary">{item.notes}</Badge>
                     </div>
                   )}
                 </CardContent>
               </Card>
-                )}
-              </Draggable>
             ))}
             {orderItems.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
                 <ShoppingCart className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Trascina qui i prodotti o clicca per aggiungere all'ordine</p>
+                <p>Clicca sui prodotti per aggiungere all'ordine</p>
               </div>
             )}
-            {provided.placeholder}
               </div>
-            )}
-          </Droppable>
         </div>
 
         {/* Order Summary & Actions */}
@@ -739,6 +682,5 @@ export function PosInterface() {
         </div>
       </div>
     </div>
-    </DragDropContext>
   );
 }
