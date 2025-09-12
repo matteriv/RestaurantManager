@@ -341,3 +341,28 @@ export type OrderWithDetails = Order & {
 export type TableWithOrders = Table & {
   orders: OrderWithDetails[];
 };
+
+// Logo settings constants and types
+export const LOGO_SETTING_KEYS = {
+  LOGO_URL: 'logo_url',
+  LOGO_NAME: 'logo_name', 
+  LOGO_ENABLED: 'logo_enabled'
+} as const;
+
+export type LogoSettingKey = typeof LOGO_SETTING_KEYS[keyof typeof LOGO_SETTING_KEYS];
+
+// Logo settings type
+export type LogoSettings = {
+  logo_url: string | null;
+  logo_name: string | null;
+  logo_enabled: boolean;
+};
+
+// Logo settings schema for validation
+export const logoSettingsSchema = z.object({
+  logo_url: z.string().url().nullable().optional(),
+  logo_name: z.string().min(1).max(100).nullable().optional(),
+  logo_enabled: z.boolean().optional()
+});
+
+export type InsertLogoSettings = z.infer<typeof logoSettingsSchema>;

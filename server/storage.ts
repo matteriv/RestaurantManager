@@ -31,6 +31,9 @@ import {
   type InsertAuditLog,
   type OrderWithDetails,
   type TableWithOrders,
+  type LogoSettings,
+  type InsertLogoSettings,
+  LOGO_SETTING_KEYS,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
@@ -50,6 +53,10 @@ export interface IStorage {
   getSettings(): Promise<Setting[]>;
   getSetting(key: string): Promise<Setting | undefined>;
   upsertSetting(setting: InsertSetting): Promise<Setting>;
+
+  // Logo settings operations
+  getLogoSettings(): Promise<LogoSettings>;
+  updateLogoSettings(logoSettings: InsertLogoSettings): Promise<LogoSettings>;
 
   // Menu operations
   getMenuCategories(): Promise<MenuCategory[]>;
@@ -237,6 +244,81 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return upsertedSetting;
+  }
+
+  // Logo settings operations
+  async getLogoSettings(): Promise<LogoSettings> {
+    // Get all logo-related settings
+    const logoKeys = Object.values(LOGO_SETTING_KEYS);
+    const logoSettingsResults = await db
+      .select()
+      .from(settings)
+      .where(inArray(settings.key, logoKeys));
+
+    // Build the logo settings object with defaults
+    const logoSettings: LogoSettings = {
+      logo_url: null,
+      logo_name: null,
+      logo_enabled: false,
+    };
+
+    // Map the database results to the logo settings object
+    for (const setting of logoSettingsResults) {
+      switch (setting.key) {
+        case LOGO_SETTING_KEYS.LOGO_URL:
+          logoSettings.logo_url = setting.value || null;
+          break;
+        case LOGO_SETTING_KEYS.LOGO_NAME:
+          logoSettings.logo_name = setting.value || null;
+          break;
+        case LOGO_SETTING_KEYS.LOGO_ENABLED:
+          logoSettings.logo_enabled = setting.value === 'true';
+          break;
+      }
+    }
+
+    return logoSettings;
+  }
+
+  async updateLogoSettings(logoSettings: InsertLogoSettings): Promise<LogoSettings> {
+    // Update each logo setting individually
+    const promises: Promise<Setting>[] = [];
+
+    if (logoSettings.logo_url !== undefined) {
+      promises.push(
+        this.upsertSetting({
+          key: LOGO_SETTING_KEYS.LOGO_URL,
+          value: logoSettings.logo_url || '',
+          description: 'Restaurant logo URL',
+        })
+      );
+    }
+
+    if (logoSettings.logo_name !== undefined) {
+      promises.push(
+        this.upsertSetting({
+          key: LOGO_SETTING_KEYS.LOGO_NAME,
+          value: logoSettings.logo_name || '',
+          description: 'Restaurant logo name/alt text',
+        })
+      );
+    }
+
+    if (logoSettings.logo_enabled !== undefined) {
+      promises.push(
+        this.upsertSetting({
+          key: LOGO_SETTING_KEYS.LOGO_ENABLED,
+          value: logoSettings.logo_enabled ? 'true' : 'false',
+          description: 'Whether the logo is enabled and should be displayed',
+        })
+      );
+    }
+
+    // Wait for all updates to complete
+    await Promise.all(promises);
+
+    // Return the updated logo settings
+    return await this.getLogoSettings();
   }
 
   // Menu operations

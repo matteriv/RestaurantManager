@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, type InsertOrderLine } from "@shared/schema";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 
 interface WebSocketClient extends WebSocket {
@@ -33,7 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           firstName: claims.first_name || claims.firstName,
           lastName: claims.last_name || claims.lastName,
           profileImageUrl: claims.profile_image_url || claims.profileImageUrl,
-          role: claims.role || 'admin', // Default to admin in test mode, waiter in production
+          role: claims.role || 'waiter', // Default to waiter for security
         };
         
         // Create the user in the database
@@ -167,6 +167,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Logo settings routes (must come before generic :key route)
+  app.get('/api/settings/logo', async (req, res) => {
+    try {
+      const logoSettings = await storage.getLogoSettings();
+      res.json(logoSettings);
+    } catch (error) {
+      console.error("Error fetching logo settings:", error);
+      res.status(500).json({ message: "Failed to fetch logo settings" });
+    }
+  });
+
+  app.post('/api/settings/logo', isAdmin, async (req: any, res) => {
+    try {
+      const logoData = logoSettingsSchema.parse(req.body);
+      const logoSettings = await storage.updateLogoSettings(logoData);
+      res.json(logoSettings);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid logo settings data", errors: error.errors });
+      }
+      console.error("Error updating logo settings:", error);
+      res.status(500).json({ message: "Failed to update logo settings" });
+    }
+  });
+
   app.get('/api/settings/:key', async (req, res) => {
     try {
       const { key } = req.params;
@@ -184,6 +209,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/settings', isAuthenticated, async (req: any, res) => {
     try {
       const settingData = insertSettingSchema.parse(req.body);
+      
+      // Security check: Protect logo setting keys - require admin privileges
+      const logoSettingValues = Object.values(LOGO_SETTING_KEYS);
+      if (logoSettingValues.includes(settingData.key)) {
+        // Check if user has admin role
+        const userId = req.user.claims.sub;
+        const user = await storage.getUser(userId);
+        
+        if (!user || user.role !== 'admin') {
+          return res.status(403).json({ 
+            message: "Admin privileges required to modify logo settings. Please use the POST /api/settings/logo endpoint instead.", 
+            errorCode: "LOGO_SETTINGS_ADMIN_REQUIRED" 
+          });
+        }
+      }
+      
       const setting = await storage.upsertSetting(settingData);
       res.json(setting);
     } catch (error) {
