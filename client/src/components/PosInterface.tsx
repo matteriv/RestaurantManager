@@ -10,8 +10,8 @@ import { Logo } from '@/components/ui/logo';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer } from 'lucide-react';
-import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine } from '@shared/schema';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer, Settings } from 'lucide-react';
+import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine, PrinterTerminal, InsertPrinterTerminal } from '@shared/schema';
 
 interface OrderItem extends InsertOrderLine {
   tempId: string;
@@ -25,6 +25,22 @@ export function PosInterface() {
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [receiptMethod, setReceiptMethod] = useState<'print'>('print');
+  const [showPrinterDialog, setShowPrinterDialog] = useState(false);
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('windows_default');
+  
+  // Generate unique terminal ID
+  const getTerminalId = () => {
+    let terminalId = localStorage.getItem('pos_terminal_id');
+    if (!terminalId) {
+      // Generate ID based on browser fingerprint and timestamp
+      const fingerprint = `${navigator.userAgent.slice(0, 20)}-${Date.now()}`;
+      terminalId = btoa(fingerprint).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
+      localStorage.setItem('pos_terminal_id', terminalId);
+    }
+    return terminalId;
+  };
+  
+  const terminalId = getTerminalId();
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -34,6 +50,21 @@ export function PosInterface() {
   const { data: categories = [] } = useQuery<MenuCategory[]>({
     queryKey: ['/api/menu/categories'],
     refetchInterval: 60000, // Refresh every minute
+  });
+
+  // Fetch available printers
+  const { data: availablePrinters = [] } = useQuery({
+    queryKey: ['/api/printers/available'],
+    enabled: showPrinterDialog,
+  });
+
+  // Fetch current printer configuration for this terminal
+  const { data: printerConfig } = useQuery<PrinterTerminal[]>({
+    queryKey: ['/api/printers/terminals', terminalId],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/printers/terminals?posTerminalId=${terminalId}`);
+      return response.json();
+    },
   });
 
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
@@ -76,6 +107,29 @@ export function PosInterface() {
       toast({
         title: "Error",
         description: "Failed to send order to kitchen.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Printer configuration mutation
+  const savePrinterMutation = useMutation({
+    mutationFn: async (printerData: InsertPrinterTerminal) => {
+      const response = await apiRequest('POST', '/api/printers/terminals', printerData);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Configurazione stampante salvata",
+        description: "La configurazione della stampante è stata aggiornata con successo.",
+      });
+      setShowPrinterDialog(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/printers/terminals', terminalId] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Errore",
+        description: "Impossibile salvare la configurazione della stampante.",
         variant: "destructive",
       });
     },
@@ -124,12 +178,20 @@ export function PosInterface() {
     },
   });
 
-  // Set default category
+  // Set default category and printer selection
   useEffect(() => {
     if (categories.length > 0 && !selectedCategory) {
       setSelectedCategory(categories[0].id);
     }
   }, [categories, selectedCategory]);
+
+  // Set current printer selection from saved config
+  useEffect(() => {
+    if (printerConfig && printerConfig.length > 0) {
+      const defaultPrinter = printerConfig.find(p => p.isDefault) || printerConfig[0];
+      setSelectedPrinter(defaultPrinter.printerName);
+    }
+  }, [printerConfig]);
 
   // Handle WebSocket messages
   useEffect(() => {
@@ -368,8 +430,135 @@ export function PosInterface() {
         <div className="border-b border-border bg-blue-50 px-4 py-2">
           <div className="flex items-center justify-between w-full">
             {/* Logo Section */}
-            <div className="flex items-center">
+            <div className="flex items-center space-x-3">
               <Logo variant="pos" data-testid="pos-logo" />
+              
+              {/* Discrete Printer Configuration Button */}
+              <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="p-2 h-8 w-8 text-blue-600 hover:bg-blue-100" 
+                    data-testid="printer-config-button"
+                    title="Configurazione Stampante"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]" data-testid="printer-config-dialog">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2">
+                      <Printer className="h-5 w-5" />
+                      <span>Configurazione Stampante</span>
+                    </DialogTitle>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      Seleziona la stampante da utilizzare per questo terminale POS.
+                    </div>
+                    
+                    {/* Current Configuration */}
+                    {printerConfig && printerConfig.length > 0 && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="text-sm font-medium text-green-800">Configurazione Attuale</div>
+                        <div className="text-sm text-green-700 mt-1">
+                          {printerConfig.find(p => p.isDefault)?.printerDescription || printerConfig[0]?.printerDescription || 'Stampante configurata'}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Terminal ID Info */}
+                    <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded">
+                      ID Terminale: {terminalId}
+                    </div>
+                    
+                    {/* Printer Selection */}
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium">Seleziona Stampante:</label>
+                      
+                      {/* Windows Default Option */}
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="windows_default"
+                          name="printer"
+                          value="windows_default"
+                          checked={selectedPrinter === 'windows_default'}
+                          onChange={(e) => setSelectedPrinter(e.target.value)}
+                          className="h-4 w-4"
+                          data-testid="printer-option-windows-default"
+                        />
+                        <label htmlFor="windows_default" className="text-sm">
+                          <span className="font-medium">Stampante Predefinita Windows</span>
+                          <div className="text-xs text-muted-foreground">Utilizza la stampante predefinita del sistema</div>
+                        </label>
+                      </div>
+                      
+                      {/* Available Printers */}
+                      {availablePrinters.map((printer: any) => (
+                        <div key={printer.name} className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id={printer.name}
+                            name="printer"
+                            value={printer.name}
+                            checked={selectedPrinter === printer.name}
+                            onChange={(e) => setSelectedPrinter(e.target.value)}
+                            className="h-4 w-4"
+                            data-testid={`printer-option-${printer.name}`}
+                          />
+                          <label htmlFor={printer.name} className="text-sm">
+                            <div className="font-medium">{printer.description}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {printer.connectionType === 'network' && printer.ipAddress && `IP: ${printer.ipAddress}`}
+                              {printer.connectionType === 'usb' && printer.port && `Porta: ${printer.port}`}
+                              {printer.connectionType === 'bluetooth' && printer.macAddress && `MAC: ${printer.macAddress}`}
+                              <span className={`ml-2 inline-block w-2 h-2 rounded-full ${
+                                printer.status === 'online' ? 'bg-green-500' : 'bg-red-500'
+                              }`}></span>
+                              <span className="ml-1">{printer.status === 'online' ? 'Online' : 'Offline'}</span>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex justify-end space-x-2 pt-4">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowPrinterDialog(false)}
+                        data-testid="printer-cancel-button"
+                      >
+                        Annulla
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          const printerData: InsertPrinterTerminal = {
+                            terminalId,
+                            printerName: selectedPrinter,
+                            printerDescription: selectedPrinter === 'windows_default' 
+                              ? 'Stampante Predefinita Windows'
+                              : availablePrinters.find((p: any) => p.name === selectedPrinter)?.description || selectedPrinter,
+                            isDefault: true,
+                            connectionType: selectedPrinter === 'windows_default' ? 'local' : (
+                              availablePrinters.find((p: any) => p.name === selectedPrinter)?.connectionType || 'local'
+                            ) as 'local' | 'network' | 'bluetooth',
+                            isActive: true,
+                          };
+                          savePrinterMutation.mutate(printerData);
+                        }}
+                        disabled={savePrinterMutation.isPending}
+                        data-testid="printer-save-button"
+                      >
+                        {savePrinterMutation.isPending ? 'Salvataggio...' : 'Salva Configurazione'}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
             
             {/* Title Section */}
