@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, type InsertOrderLine } from "@shared/schema";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 
 interface WebSocketClient extends WebSocket {
@@ -683,6 +683,196 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error resetting system:", error);
       res.status(500).json({ message: "Failed to reset system" });
+    }
+  });
+
+  // Printer Terminal Configuration routes
+  app.get('/api/printers/terminals', isAuthenticated, async (req: any, res) => {
+    try {
+      const posTerminalId = req.query.posTerminalId as string;
+      const printerTerminals = await storage.getPrinterTerminals(posTerminalId);
+      res.json(printerTerminals);
+    } catch (error) {
+      console.error("Error fetching printer terminals:", error);
+      res.status(500).json({ message: "Failed to fetch printer terminals" });
+    }
+  });
+
+  app.post('/api/printers/terminals', isAuthenticated, async (req: any, res) => {
+    try {
+      const printerTerminalData = insertPrinterTerminalSchema.parse(req.body);
+      const printerTerminal = await storage.createPrinterTerminal(printerTerminalData);
+      res.status(201).json(printerTerminal);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid printer terminal data", errors: error.errors });
+      }
+      console.error("Error creating printer terminal:", error);
+      res.status(500).json({ message: "Failed to create printer terminal" });
+    }
+  });
+
+  app.put('/api/printers/terminals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const printerTerminalData = req.body;
+      const printerTerminal = await storage.updatePrinterTerminal(id, printerTerminalData);
+      res.json(printerTerminal);
+    } catch (error) {
+      console.error("Error updating printer terminal:", error);
+      res.status(500).json({ message: "Failed to update printer terminal" });
+    }
+  });
+
+  app.delete('/api/printers/terminals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deletePrinterTerminal(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting printer terminal:", error);
+      res.status(500).json({ message: "Failed to delete printer terminal" });
+    }
+  });
+
+  // Printer Department Configuration routes
+  app.get('/api/printers/departments', isAuthenticated, async (req: any, res) => {
+    try {
+      const printerDepartments = await storage.getPrinterDepartments();
+      res.json(printerDepartments);
+    } catch (error) {
+      console.error("Error fetching printer departments:", error);
+      res.status(500).json({ message: "Failed to fetch printer departments" });
+    }
+  });
+
+  app.post('/api/printers/departments', isAuthenticated, async (req: any, res) => {
+    try {
+      const printerDepartmentData = insertPrinterDepartmentSchema.parse(req.body);
+      const printerDepartment = await storage.createPrinterDepartment(printerDepartmentData);
+      res.status(201).json(printerDepartment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid printer department data", errors: error.errors });
+      }
+      console.error("Error creating printer department:", error);
+      res.status(500).json({ message: "Failed to create printer department" });
+    }
+  });
+
+  app.put('/api/printers/departments/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const printerDepartmentData = req.body;
+      const printerDepartment = await storage.updatePrinterDepartment(id, printerDepartmentData);
+      res.json(printerDepartment);
+    } catch (error) {
+      console.error("Error updating printer department:", error);
+      res.status(500).json({ message: "Failed to update printer department" });
+    }
+  });
+
+  app.delete('/api/printers/departments/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deletePrinterDepartment(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting printer department:", error);
+      res.status(500).json({ message: "Failed to delete printer department" });
+    }
+  });
+
+  // Available Printers Discovery route
+  app.get('/api/printers/available', isAuthenticated, async (req: any, res) => {
+    try {
+      // Mock data for available printers - in real implementation this would
+      // scan for network/USB/Bluetooth printers based on connection type
+      const mockPrinters = [
+        {
+          name: "EPSON_TM_T20",
+          description: "EPSON TM-T20 Receipt Printer",
+          connectionType: "network",
+          ipAddress: "192.168.1.100",
+          status: "online"
+        },
+        {
+          name: "STAR_TSP143",
+          description: "Star TSP143III Receipt Printer",
+          connectionType: "usb",
+          port: "USB001",
+          status: "online"
+        },
+        {
+          name: "CITIZEN_CT_S310II",
+          description: "Citizen CT-S310II Thermal Printer",
+          connectionType: "bluetooth",
+          macAddress: "00:11:22:33:44:55",
+          status: "offline"
+        },
+        {
+          name: "KITCHEN_PRINTER_1",
+          description: "Kitchen Order Printer 1",
+          connectionType: "network",
+          ipAddress: "192.168.1.101",
+          status: "online"
+        },
+        {
+          name: "BAR_PRINTER",
+          description: "Bar Station Printer",
+          connectionType: "network",
+          ipAddress: "192.168.1.102",
+          status: "online"
+        }
+      ];
+
+      res.json(mockPrinters);
+    } catch (error) {
+      console.error("Error fetching available printers:", error);
+      res.status(500).json({ message: "Failed to fetch available printers" });
+    }
+  });
+
+  // Print Logging routes
+  app.post('/api/printers/logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const printLogData = insertPrintLogSchema.parse(req.body);
+      const printLog = await storage.createPrintLog(printLogData);
+      res.status(201).json(printLog);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid print log data", errors: error.errors });
+      }
+      console.error("Error creating print log:", error);
+      res.status(500).json({ message: "Failed to create print log" });
+    }
+  });
+
+  app.get('/api/printers/logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const filters: { orderId?: string; status?: string; startDate?: Date; endDate?: Date } = {};
+      
+      if (req.query.orderId) {
+        filters.orderId = req.query.orderId as string;
+      }
+      
+      if (req.query.status) {
+        filters.status = req.query.status as string;
+      }
+      
+      if (req.query.startDate) {
+        filters.startDate = new Date(req.query.startDate as string);
+      }
+      
+      if (req.query.endDate) {
+        filters.endDate = new Date(req.query.endDate as string);
+      }
+
+      const printLogs = await storage.getPrintLogs(filters);
+      res.json(printLogs);
+    } catch (error) {
+      console.error("Error fetching print logs:", error);
+      res.status(500).json({ message: "Failed to fetch print logs" });
     }
   });
 

@@ -9,6 +9,9 @@ import {
   orderLines,
   payments,
   auditLog,
+  printerTerminals,
+  printerDepartments,
+  printLogs,
   type User,
   type UpsertUser,
   type Department,
@@ -33,6 +36,13 @@ import {
   type TableWithOrders,
   type LogoSettings,
   type InsertLogoSettings,
+  type PrinterTerminal,
+  type InsertPrinterTerminal,
+  type PrinterDepartment,
+  type InsertPrinterDepartment,
+  type PrinterDepartmentWithDepartment,
+  type PrintLog,
+  type InsertPrintLog,
   LOGO_SETTING_KEYS,
 } from "@shared/schema";
 import { db } from "./db";
@@ -104,6 +114,22 @@ export interface IStorage {
 
   // Admin operations
   resetSystem(): Promise<{ deletedOrders: number; deletedPayments: number; deletedAuditLogs: number; resetTables: number }>;
+
+  // Printer Terminal operations
+  getPrinterTerminals(posTerminalId?: string): Promise<PrinterTerminal[]>;
+  createPrinterTerminal(printerTerminal: InsertPrinterTerminal): Promise<PrinterTerminal>;
+  updatePrinterTerminal(id: string, printerTerminal: Partial<InsertPrinterTerminal>): Promise<PrinterTerminal>;
+  deletePrinterTerminal(id: string): Promise<void>;
+
+  // Printer Department operations
+  getPrinterDepartments(): Promise<PrinterDepartmentWithDepartment[]>;
+  createPrinterDepartment(printerDepartment: InsertPrinterDepartment): Promise<PrinterDepartment>;
+  updatePrinterDepartment(id: string, printerDepartment: Partial<InsertPrinterDepartment>): Promise<PrinterDepartment>;
+  deletePrinterDepartment(id: string): Promise<void>;
+
+  // Print Log operations
+  createPrintLog(printLog: InsertPrintLog): Promise<PrintLog>;
+  getPrintLogs(filters?: { orderId?: string; status?: string; startDate?: Date; endDate?: Date }): Promise<PrintLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -812,6 +838,112 @@ export class DatabaseStorage implements IStorage {
         throw new Error('Failed to reset system');
       }
     });
+  }
+
+  // Printer Terminal operations
+  async getPrinterTerminals(posTerminalId?: string): Promise<PrinterTerminal[]> {
+    if (posTerminalId) {
+      return await db
+        .select()
+        .from(printerTerminals)
+        .where(eq(printerTerminals.terminalId, posTerminalId));
+    }
+    return await db.select().from(printerTerminals);
+  }
+
+  async createPrinterTerminal(printerTerminal: InsertPrinterTerminal): Promise<PrinterTerminal> {
+    const [newPrinterTerminal] = await db
+      .insert(printerTerminals)
+      .values(printerTerminal)
+      .returning();
+    return newPrinterTerminal;
+  }
+
+  async updatePrinterTerminal(id: string, printerTerminal: Partial<InsertPrinterTerminal>): Promise<PrinterTerminal> {
+    const [updatedPrinterTerminal] = await db
+      .update(printerTerminals)
+      .set(printerTerminal)
+      .where(eq(printerTerminals.id, id))
+      .returning();
+    return updatedPrinterTerminal;
+  }
+
+  async deletePrinterTerminal(id: string): Promise<void> {
+    await db.delete(printerTerminals).where(eq(printerTerminals.id, id));
+  }
+
+  // Printer Department operations
+  async getPrinterDepartments(): Promise<PrinterDepartmentWithDepartment[]> {
+    const results = await db
+      .select({
+        printerDepartment: printerDepartments,
+        department: departments,
+      })
+      .from(printerDepartments)
+      .leftJoin(departments, eq(printerDepartments.departmentId, departments.id));
+
+    return results.map(row => ({
+      ...row.printerDepartment,
+      department: row.department || undefined,
+    })) as PrinterDepartmentWithDepartment[];
+  }
+
+  async createPrinterDepartment(printerDepartment: InsertPrinterDepartment): Promise<PrinterDepartment> {
+    const [newPrinterDepartment] = await db
+      .insert(printerDepartments)
+      .values(printerDepartment)
+      .returning();
+    return newPrinterDepartment;
+  }
+
+  async updatePrinterDepartment(id: string, printerDepartment: Partial<InsertPrinterDepartment>): Promise<PrinterDepartment> {
+    const [updatedPrinterDepartment] = await db
+      .update(printerDepartments)
+      .set(printerDepartment)
+      .where(eq(printerDepartments.id, id))
+      .returning();
+    return updatedPrinterDepartment;
+  }
+
+  async deletePrinterDepartment(id: string): Promise<void> {
+    await db.delete(printerDepartments).where(eq(printerDepartments.id, id));
+  }
+
+  // Print Log operations
+  async createPrintLog(printLog: InsertPrintLog): Promise<PrintLog> {
+    const [newPrintLog] = await db
+      .insert(printLogs)
+      .values(printLog)
+      .returning();
+    return newPrintLog;
+  }
+
+  async getPrintLogs(filters?: { orderId?: string; status?: string; startDate?: Date; endDate?: Date }): Promise<PrintLog[]> {
+    const conditions: any[] = [];
+    
+    if (filters) {
+      if (filters.orderId) {
+        conditions.push(eq(printLogs.orderId, filters.orderId));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(printLogs.status, filters.status as any));
+      }
+      
+      if (filters.startDate) {
+        conditions.push(sql`${printLogs.createdAt} >= ${filters.startDate}`);
+      }
+      
+      if (filters.endDate) {
+        conditions.push(sql`${printLogs.createdAt} <= ${filters.endDate}`);
+      }
+    }
+
+    const query = conditions.length > 0 
+      ? db.select().from(printLogs).where(and(...conditions))
+      : db.select().from(printLogs);
+
+    return await query.orderBy(desc(printLogs.createdAt));
   }
 }
 
