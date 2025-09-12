@@ -48,38 +48,26 @@ export interface LogoProps
 
 const Logo = React.forwardRef<HTMLDivElement, LogoProps>(
   ({ className, variant, fallback = "Sistema Ristorante", ...props }, ref) => {
-    const [imageError, setImageError] = React.useState(false)
-    
     const { data: logoSettings, isLoading, error } = useQuery<LogoSettings>({
       queryKey: ['/api/settings/logo'],
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: true,
     })
 
-    // Reset image error when logo settings change
-    React.useEffect(() => {
-      setImageError(false)
-    }, [logoSettings?.logo_url])
+    // Always log the state
+    console.log(`[Logo ${variant}] State:`, {
+      isLoading,
+      hasError: !!error,
+      hasData: !!logoSettings,
+      logoEnabled: logoSettings?.logo_enabled,
+      logoUrl: logoSettings?.logo_url,
+      logoName: logoSettings?.logo_name
+    })
 
-    const handleImageError = React.useCallback(() => {
-      setImageError(true)
-    }, [])
-
-    const shouldShowLogo = React.useMemo(() => {
-      return (
-        !isLoading &&
-        !error &&
-        logoSettings?.logo_enabled &&
-        logoSettings?.logo_url &&
-        !imageError
-      )
-    }, [isLoading, error, logoSettings?.logo_enabled, logoSettings?.logo_url, imageError])
-
-    const altText = React.useMemo(() => {
-      return logoSettings?.logo_name || "Logo ristorante"
-    }, [logoSettings?.logo_name])
-
-    if (shouldShowLogo && logoSettings?.logo_url) {
+    // Show logo if we have data and it's enabled
+    if (!isLoading && !error && logoSettings?.logo_enabled && logoSettings?.logo_url) {
+      console.log(`[Logo ${variant}] Showing image:`, logoSettings.logo_url)
       return (
         <div 
           ref={ref} 
@@ -89,11 +77,9 @@ const Logo = React.forwardRef<HTMLDivElement, LogoProps>(
         >
           <img
             src={logoSettings.logo_url}
-            alt={altText}
+            alt={logoSettings?.logo_name || "Logo ristorante"}
             className={cn(logoVariants({ variant }))}
-            onError={handleImageError}
-            loading="lazy"
-            decoding="async"
+            onError={() => console.log(`[Logo ${variant}] Image load error`)}
             data-testid={`logo-image-${variant}`}
           />
         </div>
@@ -101,6 +87,7 @@ const Logo = React.forwardRef<HTMLDivElement, LogoProps>(
     }
 
     // Fallback component
+    console.log(`[Logo ${variant}] Showing fallback`)
     return (
       <div
         ref={ref}
