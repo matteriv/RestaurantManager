@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/ui/logo";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Clock, CheckCircle2, Package, RefreshCw } from "lucide-react";
@@ -100,6 +101,7 @@ export function DeliveryInterface() {
         <div className="max-w-lg mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
+              <Logo variant="delivery" data-testid="delivery-logo" />
               <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
                 <Package className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
