@@ -109,6 +109,19 @@ export const lineStatusEnum = pgEnum('line_status', [
   'new', 'preparing', 'ready', 'served'
 ]);
 
+// Printer-related enums
+export const connectionTypeEnum = pgEnum('connection_type', [
+  'local', 'network', 'bluetooth'
+]);
+
+export const printTypeEnum = pgEnum('print_type', [
+  'receipt', 'department_ticket'
+]);
+
+export const printStatusEnum = pgEnum('print_status', [
+  'pending', 'success', 'failed', 'retry'
+]);
+
 // Orders
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -179,6 +192,8 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const departmentsRelations = relations(departments, ({ many }) => ({
   menuItems: many(menuItems),
+  printerDepartments: many(printerDepartments),
+  printLogs: many(printLogs),
 }));
 
 export const menuCategoriesRelations = relations(menuCategories, ({ many }) => ({
@@ -366,3 +381,129 @@ export const logoSettingsSchema = z.object({
 });
 
 export type InsertLogoSettings = z.infer<typeof logoSettingsSchema>;
+
+// Printer configurations for POS terminals
+export const printerTerminals = pgTable("printer_terminals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  terminalId: varchar("terminal_id").notNull(), // Allow multiple configurations per terminal
+  printerName: varchar("printer_name").notNull(), // System printer name
+  printerDescription: text("printer_description"), // Human-readable description
+  isDefault: boolean("is_default").default(false), // Whether this is the default printer for this terminal
+  connectionType: connectionTypeEnum("connection_type").notNull().default('local'),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Printer configurations for departments/stations
+export const printerDepartments = pgTable("printer_departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  departmentId: varchar("department_id").references(() => departments.id).notNull().unique(), // One printer per department
+  printerName: varchar("printer_name").notNull(), // System printer name
+  printerDescription: text("printer_description"), // Human-readable description
+  connectionType: connectionTypeEnum("connection_type").notNull().default('local'),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Print job logging for tracking and debugging
+export const printLogs = pgTable("print_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id),
+  printerTerminalId: varchar("printer_terminal_id").references(() => printerTerminals.id), // FK to printer_terminals
+  printerDepartmentId: varchar("printer_department_id").references(() => printerDepartments.id), // FK to printer_departments
+  departmentId: varchar("department_id").references(() => departments.id), // FK to departments for consistency
+  terminalId: varchar("terminal_id"), // Legacy field - which POS terminal initiated the print
+  printType: printTypeEnum("print_type").notNull(),
+  targetPrinter: varchar("target_printer").notNull(), // Printer name or identifier
+  status: printStatusEnum("status").notNull().default('pending'),
+  content: text("content"), // Print content for debugging
+  errorMessage: text("error_message"), // Error details if failed
+  retryCount: integer("retry_count").default(0),
+  printedAt: timestamp("printed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_print_logs_order_id").on(table.orderId),
+  index("IDX_print_logs_status_created").on(table.status, table.createdAt),
+  index("IDX_print_logs_terminal_id").on(table.terminalId),
+]);
+
+// Relations for printer tables
+export const printerTerminalsRelations = relations(printerTerminals, ({ many }) => ({
+  printLogs: many(printLogs, {
+    relationName: "printerTerminalLogs"
+  }),
+}));
+
+export const printerDepartmentsRelations = relations(printerDepartments, ({ one, many }) => ({
+  department: one(departments, {
+    fields: [printerDepartments.departmentId],
+    references: [departments.id],
+  }),
+  printLogs: many(printLogs, {
+    relationName: "printerDepartmentLogs"
+  }),
+}));
+
+export const printLogsRelations = relations(printLogs, ({ one }) => ({
+  order: one(orders, {
+    fields: [printLogs.orderId],
+    references: [orders.id],
+  }),
+  printerTerminal: one(printerTerminals, {
+    fields: [printLogs.printerTerminalId],
+    references: [printerTerminals.id],
+    relationName: "printerTerminalLogs"
+  }),
+  printerDepartment: one(printerDepartments, {
+    fields: [printLogs.printerDepartmentId],
+    references: [printerDepartments.id],
+    relationName: "printerDepartmentLogs"
+  }),
+  department: one(departments, {
+    fields: [printLogs.departmentId],
+    references: [departments.id],
+  }),
+}));
+
+// Insert schemas for printer tables
+export const insertPrinterTerminalSchema = createInsertSchema(printerTerminals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPrinterDepartmentSchema = createInsertSchema(printerDepartments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPrintLogSchema = createInsertSchema(printLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types for printer tables
+export type PrinterTerminal = typeof printerTerminals.$inferSelect;
+export type InsertPrinterTerminal = z.infer<typeof insertPrinterTerminalSchema>;
+export type PrinterDepartment = typeof printerDepartments.$inferSelect;
+export type InsertPrinterDepartment = z.infer<typeof insertPrinterDepartmentSchema>;
+export type PrintLog = typeof printLogs.$inferSelect;
+export type InsertPrintLog = z.infer<typeof insertPrintLogSchema>;
+
+// Extended types for API responses
+export type PrinterDepartmentWithDepartment = PrinterDepartment & {
+  department: Department;
+};
+
+// Print job data structure
+export type PrintJob = {
+  orderId: string;
+  terminalId: string;
+  printType: 'receipt' | 'department_ticket';
+  targetPrinter: string;
+  content: string;
+  departmentId?: string; // For department tickets
+};

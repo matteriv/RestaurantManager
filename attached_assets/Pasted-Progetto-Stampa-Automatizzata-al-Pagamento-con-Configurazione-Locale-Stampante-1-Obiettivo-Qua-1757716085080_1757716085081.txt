@@ -1,0 +1,138 @@
+Progetto: Stampa Automatizzata al Pagamento con Configurazione Locale Stampante
+1. Obiettivo
+
+Quando l’operatore conferma il pagamento:
+
+Lo scontrino cliente viene stampato automaticamente sulla stampante selezionata per il POS Terminal (o predefinita Windows se non impostata).
+
+I ticket reparto vengono inviati alle stampanti dei reparti configurate.
+
+La funzionalità deve funzionare offline su rete locale.
+
+Deve essere robusta, affidabile, con gestione errori e log.
+
+Non deve alterare layout o usabilità attuali del POS Terminal.
+
+2. Requisiti funzionali
+
+Configurazione stampante locale per POS Terminal
+
+Ogni terminale deve poter impostare una stampante locale opzionale tramite un tasto o pannello discreto.
+
+La scelta viene memorizzata per la postazione e usata automaticamente al click pagamento.
+
+Deve esistere fallback sulla stampante predefinita di Windows se non viene selezionata nessuna stampante.
+
+L’interfaccia deve essere leggera, non invasiva e compatibile con l’attuale layout POS.
+
+Rilevazione stampante reparto
+
+Ogni reparto deve avere una stampante dedicata configurabile.
+
+Il sistema invia i ticket reparto automaticamente alle stampanti assegnate.
+
+Formato della stampa
+
+Scontrino cliente: intestazione, numero ordine, data/ora, elenco articoli (quantità e prezzo), totale, note, footer.
+
+Ticket reparto: solo articoli del reparto, note, tempo stimato preparazione.
+
+Layout ottimizzato per carta da 80 mm (48–56 caratteri per riga).
+
+Automazione
+
+La stampa parte automaticamente al click del pagamento.
+
+In caso di errore, viene registrato un log e segnalata all’operatore possibilità di retry.
+
+Gestione errori e log
+
+Log dettagliato: numero ordine, terminale, timestamp, esito (successo/fallimento), eventuali errori.
+
+Possibilità di ristampa manuale o automatica.
+
+Compatibilità offline
+
+Tutto il processo deve funzionare completamente in rete locale anche senza connessione Internet.
+
+Usabilità
+
+Il pannello di selezione stampante deve essere discreto, opzionale e facilmente accessibile.
+
+Non deve modificare la disposizione dei pulsanti o l’interfaccia principale del POS.
+
+Non deve introdurre ritardi nella gestione degli ordini.
+
+3. Flusso operativo aggiornato
+[POS Terminal - Cassa]
+    |---> Configura stampante locale (opzionale, discreto)
+    |
+    | click pagamento
+    v
+[Sistema genera documenti]
+    |
+    |---> Scontrino cliente
+    |         |
+    |         v
+    |    [Stampante locale POS Terminal o predefinita Windows]
+    |         |
+    |         v
+    |    Conferma / Errore -> Log + Retry
+    |
+    |---> Ticket reparto 1
+    |         |
+    |         v
+    |    [Stampante reparto 1]
+    |         |
+    |         v
+    |    Conferma / Errore -> Log + Retry
+    |
+    |---> Ticket reparto 2 ...
+
+4. Output previsto
+
+Scontrino cliente: stampato sulla stampante selezionata o predefinita, leggibile, layout chiaro.
+
+Ticket reparto: stampati automaticamente sulle stampanti dei reparti.
+
+Log completo: numero ordine, terminale, timestamp, esito, errori.
+
+5. Indicazioni operative per Replit
+
+Funzione di selezione stampante locale per POS Terminal
+
+Pannello discreto e opzionale.
+
+Memorizzazione della scelta per la postazione.
+
+Uso automatico al click pagamento.
+
+Fallback sulla stampante predefinita Windows.
+
+Funzione di invio stampa
+
+Invio testo puro compatibile con stampanti 80 mm.
+
+Gestione comandi di nuova riga e taglio carta.
+
+Conferma stampa o gestione errore con retry.
+
+Testing completo
+
+Configurare stampante locale terminale e stampante reparto.
+
+Creare ordini di prova e confermare pagamento.
+
+Verificare scontrino, ticket reparto, log e gestione errori.
+
+Testare più ordini consecutivi e funzionamento offline.
+
+6. Considerazioni finali
+
+La funzionalità deve essere automatica, affidabile e non invasiva per il POS Terminal.
+
+Ogni terminale deve poter avere stampante locale indipendente, con fallback su predefinita Windows.
+
+La stampa deve essere ottimizzata per 80 mm e compatibile con tutti i terminali.
+
+Deve essere possibile testare facilmente offline con ordini multipli e scenari di errore.
