@@ -7,6 +7,7 @@ import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAu
 import { z } from "zod";
 import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
 import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
+import { generateDepartmentTicket, getDepartmentsWithItems } from "./departmentReceiptGenerator";
 
 interface WebSocketClient extends WebSocket {
   isAlive?: boolean;
@@ -520,15 +521,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast payment completion
       broadcastMessage('payment-completed', { payment });
       
+      // Get order with full details to determine departments with items
+      const orderWithDetails = await storage.getOrder(paymentData.orderId);
+      
       // Include receipt generation URLs in response
       const receiptUrls = {
         printable: `/api/receipts/customer/${paymentData.orderId}`,
         printablePost: `/api/receipts/customer/${paymentData.orderId}` // for POST with custom payment data
       };
       
+      // Generate department receipt URLs
+      let departmentReceiptUrls: Record<string, string> = {};
+      if (orderWithDetails) {
+        try {
+          const departmentIds = getDepartmentsWithItems(orderWithDetails);
+          const departments = await storage.getDepartments();
+          
+          departmentReceiptUrls = departmentIds.reduce((urls, departmentId) => {
+            const department = departments.find(d => d.id === departmentId);
+            if (department) {
+              urls[department.code] = `/api/receipts/department/${paymentData.orderId}/${department.code}`;
+            }
+            return urls;
+          }, {} as Record<string, string>);
+        } catch (error) {
+          console.error("Error generating department receipt URLs:", error);
+          // Continue without department URLs if there's an error
+        }
+      }
+      
       res.status(201).json({
         ...payment,
         receiptUrls,
+        departmentReceiptUrls,
         receiptReady: true
       });
     } catch (error) {
@@ -675,6 +700,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error generating customer receipt with payment data:", error);
       res.status(500).json({ message: "Failed to generate receipt" });
+    }
+  });
+
+  // Department ticket generation - SECURED WITH AUTH AND VALIDATION
+  app.get('/api/receipts/department/:orderId/:departmentCode', isAuthenticated, async (req: any, res) => {
+    try {
+      const { orderId, departmentCode } = req.params;
+      
+      // Get current user for authorization check
+      const userId = req.user.claims.sub;
+      const currentUser = await storage.getUser(userId);
+      
+      if (!currentUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      // Get order with full details
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // AUTHORIZATION CHECK: Only admin/manager or assigned waiter can access order tickets
+      const hasAccess = currentUser.role === 'admin' || 
+                       currentUser.role === 'manager' || 
+                       order.waiterId === userId;
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied. You can only access tickets for your own orders.",
+          errorCode: "TICKET_ACCESS_DENIED" 
+        });
+      }
+
+      // Get department information
+      const departments = await storage.getDepartments();
+      const department = departments.find(d => d.code === departmentCode);
+      
+      if (!department) {
+        return res.status(404).json({ message: "Department not found" });
+      }
+
+      // Check if department is active
+      if (!department.isActive) {
+        return res.status(400).json({ message: "Department is not active" });
+      }
+
+      // Generate department ticket HTML
+      const ticketHTML = generateDepartmentTicket(order, department);
+
+      // Set appropriate headers for HTML response
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      
+      res.send(ticketHTML);
+    } catch (error) {
+      console.error("Error generating department ticket:", error);
+      res.status(500).json({ message: "Failed to generate department ticket" });
     }
   });
 
