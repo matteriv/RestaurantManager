@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Logo } from '@/components/ui/logo';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { useTranslation } from '@/lib/i18n';
 import { useToast } from '@/hooks/use-toast';
@@ -231,11 +232,17 @@ export function KitchenDisplay() {
       <div className="bg-white/10 backdrop-blur-sm border-b border-white/20 p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
+            {/* Logo Section */}
+            <Logo variant="kitchen" data-testid="kitchen-logo" />
+            
+            {/* Station Icon */}
             {selectedStationConfig && (
               <div className={`p-3 rounded-lg ${selectedStationConfig.color}`}>
                 <selectedStationConfig.icon className="w-8 h-8 text-white" />
               </div>
             )}
+            
+            {/* Title Section */}
             <div>
               <h1 className="text-4xl font-bold text-white">{t('kds.title')}</h1>
               <p className="text-white/80 text-lg">
