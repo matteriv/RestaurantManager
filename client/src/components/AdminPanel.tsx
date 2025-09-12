@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useToast } from '@/hooks/use-toast';
+import { Logo } from '@/components/ui/logo';
+import { logoSettingsSchema } from '@shared/schema';
+import { z } from 'zod';
 import { useTranslation } from '@/lib/i18n';
 import { apiRequest } from '@/lib/queryClient';
 import { 
@@ -40,7 +45,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
-import type { OrderWithDetails, MenuItem, MenuCategory, Table, Department } from '@shared/schema';
+import type { OrderWithDetails, MenuItem, MenuCategory, Table, Department, LogoSettings, InsertLogoSettings } from '@shared/schema';
 
 export function AdminPanel() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -54,11 +59,25 @@ export function AdminPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Validation schema for logo form
+  const logoFormSchema = logoSettingsSchema.extend({
+    logo_url: z.string().url().or(z.literal('')).optional(),
+    logo_name: z.string().optional(),
+  });
+
   // Forms
   const itemForm = useForm();
   const categoryForm = useForm();
   const tableForm = useForm();
   const departmentForm = useForm();
+  const logoForm = useForm({
+    resolver: zodResolver(logoFormSchema),
+    defaultValues: {
+      logo_enabled: false,
+      logo_url: '',
+      logo_name: '',
+    }
+  });
 
   // Data fetching
   const { data: orders = [] } = useQuery<OrderWithDetails[]>({
@@ -88,6 +107,10 @@ export function AdminPanel() {
 
   const { data: topDishes } = useQuery({
     queryKey: ['/api/analytics/top-dishes', new Date().toISOString().split('T')[0]],
+  });
+
+  const { data: logoSettings } = useQuery<LogoSettings>({
+    queryKey: ['/api/settings/logo'],
   });
 
   // Mutations
@@ -226,6 +249,29 @@ export function AdminPanel() {
     },
   });
 
+  // Logo settings mutation
+  const updateLogoMutation = useMutation({
+    mutationFn: async (data: InsertLogoSettings) => {
+      const response = await apiRequest('POST', '/api/settings/logo', data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/logo'] });
+      toast({
+        title: t('common.success'),
+        description: 'Impostazioni logo salvate con successo',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Errore',
+        description: 'Errore durante il salvataggio delle impostazioni logo',
+        variant: 'destructive',
+      });
+      console.error('Logo update error:', error);
+    },
+  });
+
   // Reset system mutation
   const resetSystemMutation = useMutation({
     mutationFn: async () => {
@@ -323,6 +369,15 @@ export function AdminPanel() {
     }
   };
 
+  const onSubmitLogo = (data: any) => {
+    const logoData: InsertLogoSettings = {
+      logo_enabled: data.logo_enabled || false,
+      logo_url: data.logo_url || null,
+      logo_name: data.logo_name || null,
+    };
+    updateLogoMutation.mutate(logoData);
+  };
+
   const openEditItem = (item: MenuItem) => {
     setEditingItem(item);
     // Reset form first
@@ -379,6 +434,15 @@ export function AdminPanel() {
       }
     }
   };
+
+  // Initialize logo form when logo settings are loaded
+  useEffect(() => {
+    if (logoSettings) {
+      logoForm.setValue('logo_enabled', logoSettings.logo_enabled);
+      logoForm.setValue('logo_url', logoSettings.logo_url || '');
+      logoForm.setValue('logo_name', logoSettings.logo_name || '');
+    }
+  }, [logoSettings, logoForm]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100">
@@ -1035,7 +1099,7 @@ export function AdminPanel() {
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
             <h2 className="text-2xl font-bold">Impostazioni Sistema</h2>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-3 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Configurazione Generale</CardTitle>
@@ -1086,6 +1150,90 @@ export function AdminPanel() {
                     <Label>Codice Fiscale</Label>
                     <Input placeholder="RSSMRA80A01F205Z" />
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Gestione Logo Aziendale</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={logoForm.handleSubmit(onSubmitLogo)} className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="logo_enabled">Abilita Logo Aziendale</Label>
+                      <Controller
+                        name="logo_enabled"
+                        control={logoForm.control}
+                        render={({ field }) => (
+                          <Switch
+                            id="logo_enabled"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-logo-enabled"
+                          />
+                        )}
+                      />
+                    </div>
+
+                    {logoForm.watch('logo_enabled') && (
+                      <>
+                        <div>
+                          <Label htmlFor="logo_url">URL Logo</Label>
+                          <Input
+                            id="logo_url"
+                            type="url"
+                            placeholder="https://esempio.com/logo.png"
+                            {...logoForm.register('logo_url')}
+                            data-testid="input-logo-url"
+                          />
+                          {logoForm.formState.errors.logo_url && (
+                            <p className="text-sm text-red-600 mt-1">
+                              {logoForm.formState.errors.logo_url.message}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <Label htmlFor="logo_name">Nome Logo</Label>
+                          <Input
+                            id="logo_name"
+                            placeholder="Nome del ristorante"
+                            {...logoForm.register('logo_name')}
+                            data-testid="input-logo-name"
+                          />
+                          {logoForm.formState.errors.logo_name && (
+                            <p className="text-sm text-red-600 mt-1">
+                              {logoForm.formState.errors.logo_name.message}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    <div className="border-t pt-4">
+                      <Label className="text-sm font-medium mb-2 block">Anteprima Logo</Label>
+                      <div className="flex justify-center p-4 bg-gray-50 rounded-lg min-h-[80px] items-center">
+                        {!logoForm.watch('logo_enabled') ? (
+                          <span className="text-gray-500 text-sm">Logo disabilitato</span>
+                        ) : (
+                          <Logo
+                            variant="admin"
+                            fallback={logoForm.watch('logo_name') || "Logo Ristorante"}
+                            data-testid="preview-logo-admin"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <Button 
+                      type="submit" 
+                      className="w-full"
+                      disabled={updateLogoMutation.isPending}
+                      data-testid="button-save-logo"
+                    >
+                      {updateLogoMutation.isPending ? 'Salvando...' : 'Salva Impostazioni Logo'}
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
             </div>
