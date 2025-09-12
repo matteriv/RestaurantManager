@@ -422,7 +422,7 @@ export function PosInterface() {
             return (
                   <Card 
                     className={`
-                      transition-all relative h-24 cursor-pointer border-2
+                      transition-all relative h-32 cursor-pointer border-2
                       ${isOutOfStock 
                         ? 'opacity-50 cursor-not-allowed bg-gray-50' 
                         : 'hover:shadow-lg hover:border-primary/50'
@@ -431,8 +431,8 @@ export function PosInterface() {
                     onClick={() => !isOutOfStock && addItemToOrder(item)}
                     data-testid={`menu-item-${item.id}`}
                   >
-                <CardContent className="p-3">
-                  <div className="text-left">
+                <CardContent className="p-3 h-full">
+                  <div className="text-left h-full flex flex-col justify-between">
                     {/* Stock indicator badge */}
                     {item.trackInventory && (
                       <div className="absolute top-2 right-2">
@@ -450,22 +450,24 @@ export function PosInterface() {
                       </div>
                     )}
                     
-                    <h3 className={`font-semibold text-sm ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
-                      {item.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+                    <div className="flex-1">
+                      <h3 className={`font-semibold text-sm leading-tight ${isOutOfStock ? 'text-muted-foreground' : 'text-foreground'}`}>
+                        {item.name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2 leading-tight">{item.description}</p>
+                      
+                      {/* Stock info */}
+                      {item.trackInventory && (
+                        <div className="flex items-center space-x-1 mt-1 text-xs text-muted-foreground">
+                          <span>Stock: {item.currentStock || 0}</span>
+                          {(item.minStock || 0) > 0 && (
+                            <span>| Min: {item.minStock}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     
-                    {/* Stock info */}
-                    {item.trackInventory && (
-                      <div className="flex items-center space-x-1 mt-1 text-sm text-muted-foreground">
-                        <span>Stock: {item.currentStock || 0}</span>
-                        {(item.minStock || 0) > 0 && (
-                          <span>| Min: {item.minStock}</span>
-                        )}
-                      </div>
-                    )}
-                    
-                    <div className="flex justify-between items-center mt-2">
+                    <div className="flex justify-between items-center mt-2 pt-1">
                       <span className={`text-lg font-bold ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>
                         €{Number(item.price).toFixed(2)}
                       </span>
