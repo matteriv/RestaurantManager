@@ -3,9 +3,10 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, type InsertOrderLine } from "@shared/schema";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, paymentInfoSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
+import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
 
 interface WebSocketClient extends WebSocket {
   isAlive?: boolean;
@@ -519,13 +520,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast payment completion
       broadcastMessage('payment-completed', { payment });
       
-      res.status(201).json(payment);
+      // Include receipt generation URLs in response
+      const receiptUrls = {
+        printable: `/api/receipts/customer/${paymentData.orderId}`,
+        printablePost: `/api/receipts/customer/${paymentData.orderId}` // for POST with custom payment data
+      };
+      
+      res.status(201).json({
+        ...payment,
+        receiptUrls,
+        receiptReady: true
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid payment data", errors: error.errors });
       }
       console.error("Error processing payment:", error);
       res.status(500).json({ message: "Failed to process payment" });
+    }
+  });
+
+  // Receipt generation routes - SECURED WITH AUTHENTICATION AND AUTHORIZATION
+  app.get('/api/receipts/customer/:orderId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      // Get current user for authorization check
+      const userId = req.user.claims.sub;
+      const currentUser = await storage.getUser(userId);
+      
+      if (!currentUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      // Get order with full details
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // AUTHORIZATION CHECK: Only admin/manager or assigned waiter can access order receipts
+      const hasAccess = currentUser.role === 'admin' || 
+                       currentUser.role === 'manager' || 
+                       order.waiterId === userId;
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied. You can only access receipts for your own orders.",
+          errorCode: "RECEIPT_ACCESS_DENIED" 
+        });
+      }
+
+      // Get restaurant settings for receipt header
+      const settings = await storage.getSettings();
+      
+      // Get payment information from the order's payments - SECURED PROCESSING
+      let paymentInfo: PaymentInfo;
+      if (order.payments && order.payments.length > 0) {
+        const payment = order.payments[0]; // Take the first payment
+        paymentInfo = {
+          method: payment.method === 'cash' ? 'Contante' : 
+                 payment.method === 'card' ? 'Carta' : 
+                 payment.method === 'split' ? 'Misto' : payment.method,
+          amount: parseFloat(payment.amount.toString()),
+          // Add received and change for cash payments if available
+          ...(payment.method === 'cash' && {
+            received: parseFloat(payment.amount.toString()),
+            change: 0
+          })
+        };
+      } else {
+        // Default payment info if no payment records exist yet
+        paymentInfo = {
+          method: 'In attesa',
+          amount: parseFloat(order.total?.toString() || '0')
+        };
+      }
+
+      // Generate receipt HTML
+      const receiptHTML = generateCustomerReceiptFromSettings(order, settings, paymentInfo);
+
+      // Set appropriate headers for HTML response
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      
+      res.send(receiptHTML);
+    } catch (error) {
+      console.error("Error generating customer receipt:", error);
+      res.status(500).json({ message: "Failed to generate receipt" });
+    }
+  });
+
+  // Receipt generation for payment flow (with payment data) - SECURED WITH AUTH AND VALIDATION
+  app.post('/api/receipts/customer/:orderId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      // Get current user for authorization check
+      const userId = req.user.claims.sub;
+      const currentUser = await storage.getUser(userId);
+      
+      if (!currentUser) {
+        return res.status(401).json({ message: "User not found" });
+      }
+      
+      // CRITICAL: Validate payment data with Zod schema to prevent injection
+      const validatedPaymentData = paymentInfoSchema.parse(req.body);
+      
+      // Get order with full details
+      const order = await storage.getOrder(orderId);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // AUTHORIZATION CHECK: Only admin/manager or assigned waiter can generate receipts
+      const hasAccess = currentUser.role === 'admin' || 
+                       currentUser.role === 'manager' || 
+                       order.waiterId === userId;
+      
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          message: "Access denied. You can only generate receipts for your own orders.",
+          errorCode: "RECEIPT_ACCESS_DENIED" 
+        });
+      }
+
+      // Get restaurant settings for receipt header
+      const settings = await storage.getSettings();
+      
+      // Prepare payment info from VALIDATED request body - SECURE AGAINST INJECTION
+      const paymentInfo: PaymentInfo = {
+        method: validatedPaymentData.method, // Already transformed by schema
+        amount: validatedPaymentData.amount,
+        received: validatedPaymentData.received,
+        change: validatedPaymentData.change,
+        transactionId: validatedPaymentData.transactionId
+      };
+
+      // Generate receipt HTML
+      const receiptHTML = generateCustomerReceiptFromSettings(order, settings, paymentInfo);
+
+      // Return HTML for printing
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      
+      res.send(receiptHTML);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid payment data - potential security threat blocked", 
+          errors: error.errors,
+          errorCode: "PAYMENT_VALIDATION_FAILED" 
+        });
+      }
+      console.error("Error generating customer receipt with payment data:", error);
+      res.status(500).json({ message: "Failed to generate receipt" });
     }
   });
 

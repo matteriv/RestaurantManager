@@ -321,6 +321,23 @@ export const insertAuditLogSchema = createInsertSchema(auditLog).omit({
   createdAt: true,
 });
 
+// PaymentInfo validation schema for receipt generation (security against injection)
+export const paymentInfoSchema = z.object({
+  method: z.enum(['cash', 'card', 'split']).transform((val) => {
+    // Transform to Italian display names securely
+    switch (val) {
+      case 'cash': return 'Contante';
+      case 'card': return 'Carta';
+      case 'split': return 'Misto';
+      default: return 'Contante'; // Safe fallback
+    }
+  }),
+  amount: z.number().positive().max(999999.99, "Amount too large"),
+  received: z.number().positive().max(999999.99, "Received amount too large").optional(),
+  change: z.number().min(0).max(999999.99, "Change amount too large").optional(),
+  transactionId: z.string().max(100, "Transaction ID too long").regex(/^[a-zA-Z0-9\-_]*$/, "Invalid transaction ID format").optional()
+}).strict();
+
 // Types
 export type UpsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
