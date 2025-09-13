@@ -61,7 +61,7 @@ export function PosInterface() {
   });
 
   // Fetch available printers
-  const { data: availablePrinters = [] } = useQuery({
+  const { data: availablePrinters = [] } = useQuery<any[]>({
     queryKey: ['/api/printers/available'],
     enabled: showPrinterDialog,
   });
@@ -454,7 +454,7 @@ export function PosInterface() {
         {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Logo size="sm" />
+            <Logo />
             <div>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-white">POS Terminal</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">ID: {terminalId}</p>
@@ -545,8 +545,8 @@ export function PosInterface() {
                     <span className="text-lg font-bold text-gray-900 dark:text-white" data-testid={`text-item-price-${item.id}`}>
                       €{Number(item.price).toFixed(2)}
                     </span>
-                    <Badge variant={item.available ? "default" : "secondary"}>
-                      {item.available ? "Available" : "Out of Stock"}
+                    <Badge variant={item.isAvailable ? "default" : "secondary"}>
+                      {item.isAvailable ? "Available" : "Out of Stock"}
                     </Badge>
                   </div>
                 </CardContent>
@@ -724,14 +724,15 @@ export function PosInterface() {
 
       {/* Printer Settings Dialog */}
       <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
-        <DialogContent data-testid="dialog-printer-settings">
+        <DialogContent className="max-w-2xl" data-testid="dialog-printer-settings">
           <DialogHeader>
-            <DialogTitle>Printer Settings</DialogTitle>
+            <DialogTitle>Configurazione Stampanti</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Auto-print Status */}
             <div>
-              <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                Auto-print Status
+              <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                Stato Stampa Automatica
               </label>
               <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div className="flex items-center space-x-2">
@@ -741,7 +742,7 @@ export function PosInterface() {
                     <AlertCircle className="w-4 h-4 text-yellow-500" />
                   )}
                   <span className="text-sm" data-testid="text-auto-print-status">
-                    {autoPrint.isEnabled ? 'Auto-print enabled' : 'Auto-print disabled'}
+                    {autoPrint.isEnabled ? 'Stampa automatica attiva' : 'Stampa automatica disattivata'}
                   </span>
                 </div>
                 <div className="flex space-x-2">
@@ -751,7 +752,7 @@ export function PosInterface() {
                     onClick={autoPrint.enableAutoPrint}
                     data-testid="button-enable-auto-print"
                   >
-                    Enable
+                    Attiva
                   </Button>
                   <Button
                     size="sm"
@@ -759,28 +760,86 @@ export function PosInterface() {
                     onClick={autoPrint.disableAutoPrint}
                     data-testid="button-disable-auto-print"
                   >
-                    Disable
+                    Disattiva
                   </Button>
                 </div>
               </div>
             </div>
 
-            {/* Print Queue Status */}
-            {autoPrint.state.printJobs.length > 0 && (
+            {/* Available Printers */}
+            <div>
+              <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                Stampanti Disponibili
+              </label>
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg">
+                {(!availablePrinters || availablePrinters.length === 0) ? (
+                  <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                    <Printer className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p>Nessuna stampante rilevata</p>
+                    <p className="text-xs mt-1">Verifica che le stampanti siano accese e connesse alla rete</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                    {availablePrinters.map((printer: any, index: number) => (
+                      <div key={printer.name || index} className="p-3 flex items-center justify-between" data-testid={`printer-option-${printer.name}`}>
+                        <div className="flex items-center space-x-3">
+                          <Printer className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                          <div>
+                            <div className="font-medium text-sm text-gray-900 dark:text-white">
+                              {printer.displayName || printer.name}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {printer.name} - {printer.status || 'Online'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            size="sm"
+                            variant={selectedPrinter === printer.name ? "default" : "outline"}
+                            onClick={() => {
+                              setSelectedPrinter(printer.name);
+                              savePrinterMutation.mutate({
+                                terminalId: terminalId,
+                                printerName: printer.name,
+                                isDefault: true,
+                                isActive: true
+                              });
+                            }}
+                            data-testid={`button-select-printer-${printer.name}`}
+                          >
+                            {selectedPrinter === printer.name ? 'Selezionata' : 'Seleziona'}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Current Configuration */}
+            {printerConfig && printerConfig.length > 0 && (
               <div>
-                <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
-                  Print Queue Status
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                  Configurazione Attuale
                 </label>
-                <div className="space-y-2">
-                  {autoPrint.state.printJobs.map((job, index) => (
-                    <div key={job.id || index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm" data-testid={`print-job-${job.id}`}>
-                      <span>{job.type === 'customer_receipt' ? 'Customer Receipt' : `Kitchen ${job.departmentCode}`}</span>
-                      <Badge variant={
-                        job.status === 'success' ? 'default' :
-                        job.status === 'failed' ? 'destructive' :
-                        job.status === 'printing' ? 'secondary' : 'outline'
-                      }>
-                        {job.status}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                  {printerConfig.map((config, index) => (
+                    <div key={config.id || index} className="flex items-center justify-between" data-testid={`printer-config-${config.id}`}>
+                      <div className="flex items-center space-x-2">
+                        <PrinterCheck className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <div className="font-medium text-sm text-gray-900 dark:text-white">
+                            {config.printerName}
+                          </div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            {config.isDefault && '(Predefinita)'}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant={config.isActive ? "default" : "secondary"}>
+                        {config.isActive ? 'Attiva' : 'Disattiva'}
                       </Badge>
                     </div>
                   ))}
@@ -788,23 +847,59 @@ export function PosInterface() {
               </div>
             )}
 
-            <div className="flex justify-between">
+            {/* Print Queue Status */}
+            {autoPrint.state.printJobs.length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                  Coda di Stampa
+                </label>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {autoPrint.state.printJobs.map((job, index) => (
+                    <div key={job.id || index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm" data-testid={`print-job-${job.id}`}>
+                      <span>{job.type === 'customer_receipt' ? 'Scontrino Cliente' : `Cucina ${job.departmentCode}`}</span>
+                      <Badge variant={
+                        job.status === 'success' ? 'default' :
+                        job.status === 'failed' ? 'destructive' :
+                        job.status === 'printing' ? 'secondary' : 'outline'
+                      }>
+                        {job.status === 'success' ? 'Completato' : 
+                         job.status === 'failed' ? 'Fallito' :
+                         job.status === 'printing' ? 'Stampa...' : job.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between pt-4 border-t">
               <Button
                 variant="outline"
                 onClick={() => setShowPrinterDialog(false)}
                 data-testid="button-close-printer-settings"
               >
-                Close
+                Chiudi
               </Button>
-              {autoPrint.state.canRetry && (
+              <div className="flex space-x-2">
+                {autoPrint.state.canRetry && (
+                  <Button
+                    variant="outline"
+                    onClick={() => autoPrint.actions.retryFailedJobs()}
+                    data-testid="button-retry-failed-prints"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Riprova Fallite
+                  </Button>
+                )}
                 <Button
-                  onClick={() => autoPrint.actions.retryFailedJobs()}
-                  data-testid="button-retry-failed-prints"
+                  onClick={() => printReceipt()}
+                  variant="secondary"
+                  data-testid="button-test-print"
                 >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Retry Failed
+                  <Printer className="w-4 h-4 mr-2" />
+                  Test Stampa
                 </Button>
-              )}
+              </div>
             </div>
           </div>
         </DialogContent>

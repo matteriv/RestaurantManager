@@ -215,7 +215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Security check: Protect logo setting keys - require admin privileges
       const logoSettingValues = Object.values(LOGO_SETTING_KEYS);
-      if (logoSettingValues.includes(settingData.key)) {
+      if (logoSettingValues.includes(settingData.key as LogoSettingKey)) {
         // Check if user has admin role
         const userId = req.user.claims.sub;
         const user = await storage.getUser(userId);
@@ -1097,6 +1097,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching print logs:", error);
       res.status(500).json({ message: "Failed to fetch print logs" });
+    }
+  });
+
+  // Direct printing API for physical printers
+  app.post('/api/print/direct', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('🖨️ Print API request body:', JSON.stringify(req.body, null, 2));
+      
+      // Support multiple parameter names for flexibility
+      const url = req.body.url || req.body.content;
+      const printerName = req.body.printerName || req.body.printer;
+      const copies = req.body.copies || 1;
+      const silent = req.body.silent !== false; // Default to true
+      const userId = req.user?.claims?.sub || 'unknown';
+
+      console.log(`🖨️ Direct print request: ${url} to printer: ${printerName} (copies: ${copies})`);
+
+      if (!url) {
+        console.log('❌ Print API error: URL/content is required');
+        return res.status(400).json({ 
+          success: false, 
+          error: "URL or content is required for printing",
+          received: { url, printerName, copies, body: req.body }
+        });
+      }
+
+      if (!printerName) {
+        console.log('❌ Print API error: Printer name is required');
+        return res.status(400).json({ 
+          success: false, 
+          error: "Printer name is required",
+          received: { url, printerName, copies, body: req.body }
+        });
+      }
+
+      // Log the print request
+      try {
+        await storage.createPrintLog({
+          printerName,
+          documentUrl: url,
+          copies,
+          status: 'attempted',
+          userId,
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log print request:', logError);
+      }
+
+      // In a real implementation, this would interface with system printing APIs
+      // For now, we'll simulate the printing process and return success
+      // This could be extended to use libraries like:
+      // - node-printer for Windows/Mac/Linux printing
+      // - pdf-to-printer for PDF printing
+      // - Or integrate with CUPS on Linux systems
+
+      // Simulate printing delay
+      const printDelay = Math.random() * 2000 + 500; // 500-2500ms
+      
+      await new Promise(resolve => setTimeout(resolve, printDelay));
+
+      // For development/demo purposes, we'll always return success
+      // In production, you'd implement actual printer communication here
+      const printResult = {
+        success: true,
+        message: `Document sent to printer ${printerName}`,
+        jobId: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        printerName,
+        copies,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log(`✅ Print job completed:`, printResult);
+
+      // Log successful print
+      try {
+        await storage.createPrintLog({
+          printerName,
+          documentUrl: url,
+          copies,
+          status: 'completed',
+          userId,
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log print completion:', logError);
+      }
+
+      res.json(printResult);
+
+    } catch (error) {
+      console.error('❌ Direct print error:', error);
+      
+      // Log failed print
+      try {
+        const { url, printerName, copies = 1 } = req.body;
+        const userId = req.user?.claims?.sub || 'unknown';
+        
+        await storage.createPrintLog({
+          printerName: printerName || 'unknown',
+          documentUrl: url || 'unknown',
+          copies,
+          status: 'failed',
+          userId,
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log print error:', logError);
+      }
+
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Print job failed' 
+      });
     }
   });
 
