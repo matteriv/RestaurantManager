@@ -13,6 +13,7 @@ import { CustomerMonitor } from "@/components/CustomerMonitor";
 import { AdminPanel } from "@/components/AdminPanel";
 import { DeliveryInterface } from "@/components/DeliveryInterface";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,7 +37,12 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/pos">
         <WebSocketProvider clientType="pos">
-          <PosInterface />
+          <ErrorBoundary 
+            fallbackTitle="POS Interface Error"
+            fallbackDescription="There was an error loading the POS interface. This might be due to a configuration issue or network problem."
+          >
+            <PosInterface />
+          </ErrorBoundary>
         </WebSocketProvider>
       </Route>
       <Route path="/kitchen">

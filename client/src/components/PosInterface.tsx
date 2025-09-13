@@ -1,23 +1,50 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Logo } from '@/components/ui/logo';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { useAutoPrint } from '@/hooks/useAutoPrint';
 import { apiRequest } from '@/lib/queryClient';
-import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer, Settings, PrinterCheck, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
-import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine, PrinterTerminal, InsertPrinterTerminal } from '@shared/schema';
+import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer, Settings, PrinterCheck, AlertCircle, CheckCircle2, RotateCcw, Monitor, Trash2, TestTube, Wifi, WifiOff, Loader2, Save, Edit, Network } from 'lucide-react';
+import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine, PrinterTerminal, InsertPrinterTerminal, ManualPrinter, InsertManualPrinter } from '@shared/schema';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 interface OrderItem extends InsertOrderLine {
   tempId: string;
   menuItem: MenuItem;
 }
+
+// Form schema for manual printer configuration
+const manualPrinterFormSchema = z.object({
+  name: z.string().min(1, "Nome richiesto").max(50, "Nome troppo lungo").regex(/^[a-zA-Z0-9_\-\s]+$/, "Nome può contenere solo lettere, numeri, spazi, trattini e underscore"),
+  ipAddress: z.string().ip({ version: "v4", message: "Indirizzo IP non valido" }).refine((ip) => {
+    // Validate RFC1918 private IP ranges only
+    const octets = ip.split('.').map(Number);
+    if (octets[0] === 192 && octets[1] === 168) return true; // 192.168.0.0/16
+    if (octets[0] === 10) return true; // 10.0.0.0/8
+    if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true; // 172.16.0.0/12
+    return false;
+  }, "L'indirizzo IP deve essere in un range privato RFC1918 (192.168.x.x, 10.x.x.x, o 172.16-31.x.x)"),
+  protocol: z.enum(["raw9100", "ipp"], { message: "Protocollo non valido" }),
+  port: z.number().int().refine((port) => {
+    // Whitelist known printer ports
+    const allowedPorts = [9100, 631, 515];
+    return allowedPorts.includes(port);
+  }, "La porta deve essere una tra: 9100 (raw TCP), 631 (IPP), o 515 (LPR)")
+});
+
+type ManualPrinterFormData = z.infer<typeof manualPrinterFormSchema>;
 
 export function PosInterface() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -28,6 +55,9 @@ export function PosInterface() {
   const [receiptMethod, setReceiptMethod] = useState<'print'>('print');
   const [showPrinterDialog, setShowPrinterDialog] = useState(false);
   const [selectedPrinter, setSelectedPrinter] = useState<string>('windows_default');
+  const [activeTab, setActiveTab] = useState<string>('auto');
+  const [testingPrinter, setTestingPrinter] = useState<string | null>(null);
+  const [editingPrinter, setEditingPrinter] = useState<ManualPrinter | null>(null);
   
   // Generate unique terminal ID
   const getTerminalId = () => {
@@ -72,6 +102,24 @@ export function PosInterface() {
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/printers/terminals?posTerminalId=${terminalId}`);
       return response.json();
+    },
+  });
+
+  // Fetch manual printers
+  const { data: manualPrinters = [], refetch: refetchManualPrinters } = useQuery<ManualPrinter[]>({
+    queryKey: ['/api/printers/manual'],
+    enabled: showPrinterDialog,
+    refetchInterval: 30000, // Refresh every 30 seconds when dialog is open
+  });
+
+  // Form for manual printer configuration
+  const manualPrinterForm = useForm<ManualPrinterFormData>({
+    resolver: zodResolver(manualPrinterFormSchema),
+    defaultValues: {
+      name: '',
+      ipAddress: '',
+      protocol: 'raw9100',
+      port: 9100,
     },
   });
 
@@ -138,6 +186,74 @@ export function PosInterface() {
       toast({
         title: "Errore",
         description: "Impossibile salvare la configurazione della stampante.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Manual printer mutations
+  const saveManualPrinterMutation = useMutation({
+    mutationFn: async (printerData: ManualPrinterFormData & { id?: string }) => {
+      const response = await apiRequest('POST', '/api/printers/manual', printerData);
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Stampante salvata",
+        description: "La stampante di rete è stata configurata con successo.",
+      });
+      manualPrinterForm.reset();
+      setEditingPrinter(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/printers/manual'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/printers/available'] });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.message || "Impossibile salvare la stampante di rete.";
+      toast({
+        title: "Errore",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteManualPrinterMutation = useMutation({
+    mutationFn: async (printerId: string) => {
+      await apiRequest('DELETE', `/api/printers/manual/${printerId}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Stampante rimossa",
+        description: "La stampante di rete è stata rimossa con successo.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/printers/manual'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/printers/available'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Errore",
+        description: "Impossibile rimuovere la stampante di rete.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const testPrinterConnectionMutation = useMutation({
+    mutationFn: async (testData: { ipAddress: string; port: number; protocol: string }) => {
+      const response = await apiRequest('POST', '/api/printers/test', testData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Test connessione riuscito",
+        description: data.message || "La stampante è raggiungibile.",
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error?.response?.data?.message || "Impossibile raggiungere la stampante.";
+      toast({
+        title: "Test connessione fallito",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -217,6 +333,28 @@ export function PosInterface() {
       setSelectedPrinter(defaultPrinter.printerName);
     }
   }, [printerConfig]);
+
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!showPrinterDialog) {
+      manualPrinterForm.reset();
+      setEditingPrinter(null);
+      setActiveTab('auto');
+    }
+  }, [showPrinterDialog, manualPrinterForm]);
+
+  // Pre-fill form when editing a printer
+  useEffect(() => {
+    if (editingPrinter) {
+      manualPrinterForm.reset({
+        name: editingPrinter.name,
+        ipAddress: editingPrinter.ipAddress,
+        protocol: editingPrinter.protocol as 'raw9100' | 'ipp',
+        port: editingPrinter.port,
+      });
+      setActiveTab('manual');
+    }
+  }, [editingPrinter, manualPrinterForm]);
 
   // Handle WebSocket messages
   useEffect(() => {
@@ -446,6 +584,45 @@ export function PosInterface() {
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
+
+  // Handle manual printer form submission
+  const handleManualPrinterSubmit = (data: ManualPrinterFormData) => {
+    const submitData = editingPrinter 
+      ? { ...data, id: editingPrinter.id }
+      : data;
+    
+    saveManualPrinterMutation.mutate(submitData);
+  };
+
+  // Handle test connection
+  const handleTestConnection = () => {
+    const formData = manualPrinterForm.getValues();
+    setTestingPrinter(`${formData.ipAddress}:${formData.port}`);
+    testPrinterConnectionMutation.mutate({
+      ipAddress: formData.ipAddress,
+      port: formData.port,
+      protocol: formData.protocol,
+    });
+  };
+
+  // Handle edit printer
+  const handleEditPrinter = (printer: ManualPrinter) => {
+    setEditingPrinter(printer);
+  };
+
+  // Handle delete printer
+  const handleDeletePrinter = (printerId: string) => {
+    if (confirm('Sei sicuro di voler rimuovere questa stampante?')) {
+      deleteManualPrinterMutation.mutate(printerId);
+    }
+  };
+
+  // Clear test status when connection test finishes
+  useEffect(() => {
+    if (!testPrinterConnectionMutation.isPending) {
+      setTestingPrinter(null);
+    }
+  }, [testPrinterConnectionMutation.isPending]);
 
   return (
     <div className="h-screen bg-gray-50 dark:bg-gray-900 flex">
@@ -728,151 +905,360 @@ export function PosInterface() {
           <DialogHeader>
             <DialogTitle>Configurazione Stampanti</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6">
-            {/* Auto-print Status */}
-            <div>
-              <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
-                Stato Stampa Automatica
-              </label>
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  {autoPrint.isEnabled ? (
-                    <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-yellow-500" />
-                  )}
-                  <span className="text-sm" data-testid="text-auto-print-status">
-                    {autoPrint.isEnabled ? 'Stampa automatica attiva' : 'Stampa automatica disattivata'}
-                  </span>
-                </div>
-                <div className="flex space-x-2">
-                  <Button
-                    size="sm"
-                    variant={autoPrint.isEnabled ? "secondary" : "default"}
-                    onClick={autoPrint.enableAutoPrint}
-                    data-testid="button-enable-auto-print"
-                  >
-                    Attiva
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={!autoPrint.isEnabled ? "secondary" : "default"}
-                    onClick={autoPrint.disableAutoPrint}
-                    data-testid="button-disable-auto-print"
-                  >
-                    Disattiva
-                  </Button>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="auto" data-testid="tab-auto-printers">Stampanti Automatiche</TabsTrigger>
+              <TabsTrigger value="manual" data-testid="tab-manual-printers">Configurazione Manuale</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="auto" className="space-y-6 mt-6">
+              {/* Auto-print Status */}
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                  Stato Stampa Automatica
+                </label>
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    {autoPrint.isEnabled ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    )}
+                    <span className="text-sm" data-testid="text-auto-print-status">
+                      {autoPrint.isEnabled ? 'Stampa automatica attiva' : 'Stampa automatica disattivata'}
+                    </span>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button
+                      size="sm"
+                      variant={autoPrint.isEnabled ? "secondary" : "default"}
+                      onClick={autoPrint.enableAutoPrint}
+                      data-testid="button-enable-auto-print"
+                    >
+                      Attiva
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={!autoPrint.isEnabled ? "secondary" : "default"}
+                      onClick={autoPrint.disableAutoPrint}
+                      data-testid="button-disable-auto-print"
+                    >
+                      Disattiva
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Available Printers */}
-            <div>
-              <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
-                Stampanti Disponibili
-              </label>
-              <div className="border border-gray-200 dark:border-gray-600 rounded-lg">
-                {(!availablePrinters || availablePrinters.length === 0) ? (
-                  <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                    <Printer className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>Nessuna stampante rilevata</p>
-                    <p className="text-xs mt-1">Verifica che le stampanti siano accese e connesse alla rete</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-200 dark:divide-gray-600">
-                    {availablePrinters.map((printer: any, index: number) => (
-                      <div key={printer.name || index} className="p-3 flex items-center justify-between" data-testid={`printer-option-${printer.name}`}>
-                        <div className="flex items-center space-x-3">
-                          <Printer className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              {/* Available Printers */}
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                  Stampanti Disponibili
+                </label>
+                <div className="border border-gray-200 dark:border-gray-600 rounded-lg">
+                  {(!availablePrinters || availablePrinters.length === 0) ? (
+                    <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      <Printer className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Nessuna stampante rilevata</p>
+                      <p className="text-xs mt-1">Verifica che le stampanti siano accese e connesse alla rete</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                      {availablePrinters.map((printer: any, index: number) => (
+                        <div key={printer.name || index} className="p-3 flex items-center justify-between" data-testid={`printer-option-${printer.name}`}>
+                          <div className="flex items-center space-x-3">
+                            <Printer className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                            <div>
+                              <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                {printer.displayName || printer.name}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {printer.name} - {printer.status || 'Online'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              size="sm"
+                              variant={selectedPrinter === printer.name ? "default" : "outline"}
+                              onClick={() => {
+                                setSelectedPrinter(printer.name);
+                                savePrinterMutation.mutate({
+                                  terminalId: terminalId,
+                                  printerName: printer.name,
+                                  isDefault: true,
+                                  isActive: true
+                                });
+                              }}
+                              data-testid={`button-select-printer-${printer.name}`}
+                            >
+                              {selectedPrinter === printer.name ? 'Selezionata' : 'Seleziona'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Current Configuration */}
+              {printerConfig && printerConfig.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                    Configurazione Attuale
+                  </label>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    {printerConfig.map((config, index) => (
+                      <div key={config.id || index} className="flex items-center justify-between" data-testid={`printer-config-${config.id}`}>
+                        <div className="flex items-center space-x-2">
+                          <PrinterCheck className="w-4 h-4 text-blue-600" />
                           <div>
                             <div className="font-medium text-sm text-gray-900 dark:text-white">
-                              {printer.displayName || printer.name}
+                              {config.printerName}
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {printer.name} - {printer.status || 'Online'}
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              {config.isDefault && '(Predefinita)'}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant={selectedPrinter === printer.name ? "default" : "outline"}
-                            onClick={() => {
-                              setSelectedPrinter(printer.name);
-                              savePrinterMutation.mutate({
-                                terminalId: terminalId,
-                                printerName: printer.name,
-                                isDefault: true,
-                                isActive: true
-                              });
-                            }}
-                            data-testid={`button-select-printer-${printer.name}`}
-                          >
-                            {selectedPrinter === printer.name ? 'Selezionata' : 'Seleziona'}
-                          </Button>
-                        </div>
+                        <Badge variant={config.isActive ? "default" : "secondary"}>
+                          {config.isActive ? 'Attiva' : 'Disattiva'}
+                        </Badge>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
 
-            {/* Current Configuration */}
-            {printerConfig && printerConfig.length > 0 && (
+              {/* Print Queue Status */}
+              {autoPrint.state.printJobs.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                    Coda di Stampa
+                  </label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {autoPrint.state.printJobs.map((job, index) => (
+                      <div key={job.id || index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm" data-testid={`print-job-${job.id}`}>
+                        <span>{job.type === 'customer_receipt' ? 'Scontrino Cliente' : `Cucina ${job.departmentCode}`}</span>
+                        <Badge variant={
+                          job.status === 'success' ? 'default' :
+                          job.status === 'failed' ? 'destructive' :
+                          job.status === 'printing' ? 'secondary' : 'outline'
+                        }>
+                          {job.status === 'success' ? 'Completato' : 
+                           job.status === 'failed' ? 'Fallito' :
+                           job.status === 'printing' ? 'Stampa...' : job.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="manual" className="space-y-6 mt-6">
+              {/* Manual Printer Configuration Form */}
               <div>
                 <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
-                  Configurazione Attuale
+                  {editingPrinter ? 'Modifica Stampante di Rete' : 'Aggiungi Stampante di Rete'}
                 </label>
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                  {printerConfig.map((config, index) => (
-                    <div key={config.id || index} className="flex items-center justify-between" data-testid={`printer-config-${config.id}`}>
-                      <div className="flex items-center space-x-2">
-                        <PrinterCheck className="w-4 h-4 text-blue-600" />
-                        <div>
-                          <div className="font-medium text-sm text-gray-900 dark:text-white">
-                            {config.printerName}
-                          </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400">
-                            {config.isDefault && '(Predefinita)'}
+                <Form {...manualPrinterForm}>
+                  <form onSubmit={manualPrinterForm.handleSubmit(handleManualPrinterSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={manualPrinterForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome Stampante</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Es. Stampante Cucina"
+                                data-testid="input-printer-name"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={manualPrinterForm.control}
+                        name="ipAddress"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Indirizzo IP</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="192.168.1.100"
+                                data-testid="input-printer-ip"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={manualPrinterForm.control}
+                        name="protocol"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Protocollo</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-printer-protocol">
+                                  <SelectValue placeholder="Seleziona protocollo" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="raw9100">Raw/TCP (9100)</SelectItem>
+                                <SelectItem value="ipp">IPP (631)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={manualPrinterForm.control}
+                        name="port"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Porta</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="9100"
+                                data-testid="input-printer-port"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleTestConnection}
+                        disabled={testPrinterConnectionMutation.isPending || testingPrinter !== null}
+                        data-testid="button-test-connection"
+                      >
+                        {testPrinterConnectionMutation.isPending ? (
+                          <>
+                            <RotateCcw className="w-4 h-4 mr-2 animate-spin" />
+                            Test in corso...
+                          </>
+                        ) : (
+                          <>
+                            <Wifi className="w-4 h-4 mr-2" />
+                            Test Connessione
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={saveManualPrinterMutation.isPending}
+                        data-testid="button-save-printer"
+                      >
+                        {saveManualPrinterMutation.isPending ? (
+                          <>
+                            <RotateCcw className="w-4 h-4 mr-2 animate-spin" />
+                            Salvataggio...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            {editingPrinter ? 'Aggiorna' : 'Salva'} Stampante
+                          </>
+                        )}
+                      </Button>
+                      {editingPrinter && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingPrinter(null);
+                            manualPrinterForm.reset();
+                          }}
+                          data-testid="button-cancel-edit"
+                        >
+                          Annulla
+                        </Button>
+                      )}
+                    </div>
+                  </form>
+                </Form>
+              </div>
+
+              {/* Manual Printers List */}
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
+                  Stampanti di Rete Configurate
+                </label>
+                <div className="border border-gray-200 dark:border-gray-600 rounded-lg">
+                  {manualPrinters.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                      <Network className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Nessuna stampante di rete configurata</p>
+                      <p className="text-xs mt-1">Aggiungi una stampante utilizzando il modulo sopra</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                      {manualPrinters.map((printer) => (
+                        <div key={printer.id} className="p-3" data-testid={`manual-printer-${printer.id}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <Network className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                              <div>
+                                <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                  {printer.name}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {printer.ipAddress}:{printer.port} ({printer.protocol})
+                                  {testingPrinter === `${printer.ipAddress}:${printer.port}` && (
+                                    <span className="ml-2 text-blue-600">Testing...</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditPrinter(printer)}
+                                data-testid={`button-edit-printer-${printer.id}`}
+                              >
+                                <Edit className="w-3 h-3 mr-1" />
+                                Modifica
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeletePrinter(printer.id)}
+                                disabled={deleteManualPrinterMutation.isPending}
+                                data-testid={`button-delete-printer-${printer.id}`}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                Elimina
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <Badge variant={config.isActive ? "default" : "secondary"}>
-                        {config.isActive ? 'Attiva' : 'Disattiva'}
-                      </Badge>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
-            )}
+            </TabsContent>
 
-            {/* Print Queue Status */}
-            {autoPrint.state.printJobs.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
-                  Coda di Stampa
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {autoPrint.state.printJobs.map((job, index) => (
-                    <div key={job.id || index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm" data-testid={`print-job-${job.id}`}>
-                      <span>{job.type === 'customer_receipt' ? 'Scontrino Cliente' : `Cucina ${job.departmentCode}`}</span>
-                      <Badge variant={
-                        job.status === 'success' ? 'default' :
-                        job.status === 'failed' ? 'destructive' :
-                        job.status === 'printing' ? 'secondary' : 'outline'
-                      }>
-                        {job.status === 'success' ? 'Completato' : 
-                         job.status === 'failed' ? 'Fallito' :
-                         job.status === 'printing' ? 'Stampa...' : job.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between pt-4 border-t">
+            <div className="flex justify-between pt-4 border-t mt-6">
               <Button
                 variant="outline"
                 onClick={() => setShowPrinterDialog(false)}
@@ -901,7 +1287,7 @@ export function PosInterface() {
                 </Button>
               </div>
             </div>
-          </div>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
