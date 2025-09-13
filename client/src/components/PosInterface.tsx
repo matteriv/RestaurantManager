@@ -647,7 +647,7 @@ export function PosInterface() {
   return (
     <div className="h-screen bg-gray-50 dark:bg-gray-900 flex">
       {/* Sidebar with Menu Categories */}
-      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className="w-72 lg:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -716,11 +716,12 @@ export function PosInterface() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Menu Items Grid */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {/* Main Content Area */}
+      <div className="flex-1 flex">
+        {/* Products Grid Area */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 p-3 overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
             {menuItems.map(item => (
               <Card
                 key={item.id}
@@ -728,138 +729,163 @@ export function PosInterface() {
                 onClick={() => addItemToOrder(item)}
                 data-testid={`card-menu-item-${item.id}`}
               >
-                <CardContent className="p-4">
-                  <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-md mb-3 flex items-center justify-center">
-                    <Package className="w-8 h-8 text-gray-400" />
+                <CardContent className="p-3">
+                  <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-md mb-2 flex items-center justify-center">
+                    <Package className="w-6 h-6 text-gray-400" />
                   </div>
-                  <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-1" data-testid={`text-item-name-${item.id}`}>
+                  <h3 className="font-semibold text-xs text-gray-900 dark:text-white mb-1 line-clamp-2" data-testid={`text-item-name-${item.id}`}>
                     {item.name}
                   </h3>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 line-clamp-2">
-                    {item.description}
-                  </p>
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-gray-900 dark:text-white" data-testid={`text-item-price-${item.id}`}>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white" data-testid={`text-item-price-${item.id}`}>
                       €{Number(item.price).toFixed(2)}
                     </span>
-                    <Badge variant={item.isAvailable ? "default" : "secondary"}>
-                      {item.isAvailable ? "Available" : "Out of Stock"}
+                    <Badge variant={item.isAvailable ? "default" : "secondary"} className="text-xs px-1 py-0">
+                      {item.isAvailable ? "✓" : "✗"}
                     </Badge>
                   </div>
                 </CardContent>
               </Card>
             ))}
+            </div>
           </div>
         </div>
 
-        {/* Order Summary Footer */}
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-6">
-          <div className="grid grid-cols-3 gap-6">
-            {/* Order Items */}
-            <div className="col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Order</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowNotesDialog(true)}
-                  data-testid="button-add-notes"
-                >
-                  <StickyNote className="w-4 h-4 mr-2" />
-                  Notes
-                </Button>
+        {/* Vertical Order Section */}
+        <div className="w-80 lg:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+          {/* Order Header */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Order</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowNotesDialog(true)}
+                data-testid="button-add-notes"
+              >
+                <StickyNote className="w-4 h-4 mr-2" />
+                Notes
+              </Button>
+            </div>
+            
+            {/* Order Total Summary */}
+            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-300">Subtotal:</span>
+                  <span className="text-gray-900 dark:text-white" data-testid="text-subtotal">€{calculateSubtotal().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-300">Tax (22%):</span>
+                  <span className="text-gray-900 dark:text-white" data-testid="text-tax">€{calculateTax().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold border-t pt-1">
+                  <span className="text-gray-900 dark:text-white">Total:</span>
+                  <span className="text-gray-900 dark:text-white" data-testid="text-total">€{calculateTotal().toFixed(2)}</span>
+                </div>
               </div>
-              
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {orderItems.map(item => (
-                  <div key={item.tempId} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded-lg" data-testid={`order-item-${item.tempId}`}>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-sm text-gray-900 dark:text-white" data-testid={`text-order-item-name-${item.tempId}`}>
-                        {item.menuItem.name}
-                      </h4>
-                      <p className="text-xs text-gray-600 dark:text-gray-300">
-                        €{Number(item.unitPrice).toFixed(2)} each
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateItemQuantity(item.tempId, -1)}
-                        data-testid={`button-decrease-${item.tempId}`}
-                      >
-                        <Minus className="w-3 h-3" />
-                      </Button>
-                      <span className="w-8 text-center font-medium text-gray-900 dark:text-white" data-testid={`text-quantity-${item.tempId}`}>
-                        {item.quantity}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => updateItemQuantity(item.tempId, 1)}
-                        data-testid={`button-increase-${item.tempId}`}
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
+            </div>
+          </div>
+
+          {/* Scrollable Order Items */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-3">
+              {orderItems.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No items in order</p>
+                  <p className="text-sm">Add products from the menu</p>
+                </div>
+              ) : (
+                orderItems.map(item => (
+                  <div key={item.tempId} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg" data-testid={`order-item-${item.tempId}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm text-gray-900 dark:text-white" data-testid={`text-order-item-name-${item.tempId}`}>
+                          {item.menuItem.name}
+                        </h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">
+                          €{Number(item.unitPrice).toFixed(2)} each
+                        </p>
+                      </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => removeItem(item.tempId)}
                         data-testid={`button-remove-${item.tempId}`}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="text-right ml-4">
-                      <span className="font-semibold text-gray-900 dark:text-white" data-testid={`text-item-total-${item.tempId}`}>
-                        €{Number(item.totalPrice).toFixed(2)}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateItemQuantity(item.tempId, -1)}
+                          data-testid={`button-decrease-${item.tempId}`}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </Button>
+                        <span className="w-8 text-center font-medium text-gray-900 dark:text-white" data-testid={`text-quantity-${item.tempId}`}>
+                          {item.quantity}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateItemQuantity(item.tempId, 1)}
+                          data-testid={`button-increase-${item.tempId}`}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-semibold text-gray-900 dark:text-white" data-testid={`text-item-total-${item.tempId}`}>
+                          €{Number(item.totalPrice).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
+          </div>
 
-            {/* Order Total & Actions */}
-            <div>
-              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-300">Subtotal:</span>
-                    <span className="text-gray-900 dark:text-white" data-testid="text-subtotal">€{calculateSubtotal().toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-300">Tax (22%):</span>
-                    <span className="text-gray-900 dark:text-white" data-testid="text-tax">€{calculateTax().toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold border-t pt-2">
-                    <span className="text-gray-900 dark:text-white">Total:</span>
-                    <span className="text-gray-900 dark:text-white" data-testid="text-total">€{calculateTotal().toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Button
-                  onClick={sendToKitchen}
-                  disabled={orderItems.length === 0 || createOrderMutation.isPending}
-                  className="w-full"
-                  variant="outline"
-                  data-testid="button-send-kitchen"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Send to Kitchen
-                </Button>
-                <Button
-                  onClick={() => setShowPaymentDialog(true)}
-                  disabled={orderItems.length === 0}
-                  className="w-full"
-                  data-testid="button-payment"
-                >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Process Payment
-                </Button>
-              </div>
+          {/* Fixed Action Buttons */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="space-y-3">
+              <Button
+                onClick={sendToKitchen}
+                disabled={orderItems.length === 0 || createOrderMutation.isPending}
+                className="w-full h-11 lg:h-12 text-sm lg:text-base"
+                variant="outline"
+                data-testid="button-send-kitchen"
+              >
+                {createOrderMutation.isPending ? (
+                  <>
+                    <RotateCcw className="w-4 h-4 lg:w-5 lg:h-5 mr-2 animate-spin" />
+                    <span className="hidden sm:inline">Sending...</span>
+                    <span className="sm:hidden">...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                    <span className="hidden sm:inline">Send to Kitchen</span>
+                    <span className="sm:hidden">Kitchen</span>
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => setShowPaymentDialog(true)}
+                disabled={orderItems.length === 0}
+                className="w-full h-11 lg:h-12 text-sm lg:text-base"
+                data-testid="button-payment"
+              >
+                <CreditCard className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />
+                <span className="hidden sm:inline">Process Payment</span>
+                <span className="sm:hidden">Payment</span>
+              </Button>
             </div>
           </div>
         </div>
