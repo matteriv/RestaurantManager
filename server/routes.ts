@@ -1199,12 +1199,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      console.warn(`Printer test failed: ${error.message}`);
+      console.warn(`Printer test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       res.json({
         success: false,
         status: 'offline',
-        message: error.message.includes('timeout') ? 'Connection timeout (3s)' : 'Connection failed',
-        error: error.message
+        message: (error instanceof Error && error.message.includes('timeout')) ? 'Connection timeout (3s)' : 'Connection failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });

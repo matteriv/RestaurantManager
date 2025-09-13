@@ -2,6 +2,8 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
 import { networkInterfaces } from 'os';
+import { storage } from './storage';
+import type { ManualPrinter } from '@shared/schema';
 
 const execAsync = promisify(exec);
 
@@ -54,6 +56,57 @@ const CACHE_TTL = 30 * 1000; // 30 seconds
 const COMMAND_TIMEOUT = 10000; // 10 seconds timeout for OS commands
 const NETWORK_SCAN_TIMEOUT = 30000; // 30 seconds for network scans
 const QUICK_SCAN_TIMEOUT = 5000; // 5 seconds for quick port checks
+
+/**
+ * Convert ManualPrinter from database to DetectedPrinter format
+ */
+function convertManualPrinterToDetected(manualPrinter: ManualPrinter): DetectedPrinter {
+  const protocolPort = manualPrinter.protocol === 'ipp' ? '631' : manualPrinter.port.toString();
+  
+  return {
+    name: manualPrinter.name.replace(/[^a-zA-Z0-9_\-\s]/g, '_'), // Sanitize name
+    description: `${manualPrinter.name} (Manual Network Printer)`,
+    connectionType: "network",
+    status: "unknown", // Will be checked during detection
+    ipAddress: manualPrinter.ipAddress,
+    port: protocolPort
+  };
+}
+
+/**
+ * Load manual printers from database and convert to DetectedPrinter format
+ */
+async function loadManualPrinters(): Promise<DetectedPrinter[]> {
+  try {
+    console.log('📋 Loading manual printers from database...');
+    const manualPrinters = await storage.getManualPrinters();
+    
+    const detectedPrinters = manualPrinters
+      .filter(printer => printer.isActive) // Only include active printers
+      .map(convertManualPrinterToDetected);
+    
+    console.log(`✅ Loaded ${detectedPrinters.length} active manual printers`);
+    
+    // Test connectivity for manual printers
+    for (const printer of detectedPrinters) {
+      if (printer.ipAddress && printer.port) {
+        try {
+          const isOnline = await checkPrinterPort(printer.ipAddress, parseInt(printer.port));
+          printer.status = isOnline ? 'online' : 'offline';
+          console.log(`🔌 Manual printer ${printer.name}: ${printer.status}`);
+        } catch (error) {
+          printer.status = 'offline';
+          console.log(`⚠️ Manual printer ${printer.name}: connection test failed`);
+        }
+      }
+    }
+    
+    return detectedPrinters;
+  } catch (error) {
+    console.error('❌ Error loading manual printers:', error);
+    return [];
+  }
+}
 
 /**
  * Mock/fallback printers to return if real detection fails
@@ -613,9 +666,16 @@ export async function getAvailablePrinters(): Promise<DetectedPrinter[]> {
   const startTime = Date.now();
 
   try {
+    // STEP 1: Load manual printers from database first (highest priority)
+    const manualPrinters = await loadManualPrinters();
+    printers = [...manualPrinters];
+    
+    // STEP 2: Run OS-specific detection and merge results
+    let systemPrinters: DetectedPrinter[] = [];
+    
     if (platform === 'win32') {
       console.log('🪟 Running Windows printer detection...');
-      printers = await detectWindowsPrinters();
+      systemPrinters = await detectWindowsPrinters();
       
       // Also try network discovery on Windows
       try {
@@ -624,12 +684,12 @@ export async function getAvailablePrinters(): Promise<DetectedPrinter[]> {
         
         // Merge without duplicates
         for (const netPrinter of networkPrinters) {
-          const exists = printers.some(p => 
+          const exists = systemPrinters.some(p => 
             p.name === netPrinter.name || 
             (p.ipAddress && p.ipAddress === netPrinter.ipAddress)
           );
           if (!exists) {
-            printers.push(netPrinter);
+            systemPrinters.push(netPrinter);
           }
         }
       } catch (error) {
@@ -638,17 +698,32 @@ export async function getAvailablePrinters(): Promise<DetectedPrinter[]> {
       
     } else if (platform === 'linux' || platform === 'darwin') {
       console.log(`🐧 Running ${platform === 'darwin' ? 'macOS' : 'Linux'} printer detection...`);
-      printers = await detectUnixPrinters();
+      systemPrinters = await detectUnixPrinters();
     } else {
       console.warn(`❓ Unsupported platform: ${platform}, using mock printers with network discovery`);
       
       // Try network discovery even on unsupported platforms
       try {
         const networkPrinters = await detectNetworkPrintersViaNmap();
-        printers = networkPrinters.length > 0 ? networkPrinters : getMockPrinters();
+        systemPrinters = networkPrinters.length > 0 ? networkPrinters : getMockPrinters();
       } catch (error) {
         console.error('Network discovery failed on unsupported platform:', error);
-        printers = getMockPrinters();
+        systemPrinters = getMockPrinters();
+      }
+    }
+    
+    // STEP 3: Merge system printers with manual printers, avoiding duplicates
+    // Manual printers take priority over system-detected ones
+    for (const sysPrinter of systemPrinters) {
+      const existsInManual = printers.some(p => 
+        p.name === sysPrinter.name || 
+        (p.ipAddress && sysPrinter.ipAddress && p.ipAddress === sysPrinter.ipAddress && p.port === sysPrinter.port)
+      );
+      
+      if (!existsInManual) {
+        printers.push(sysPrinter);
+      } else {
+        console.log(`🔄 Skipping system printer ${sysPrinter.name} - already exists as manual printer`);
       }
     }
 
