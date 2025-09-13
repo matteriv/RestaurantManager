@@ -6,6 +6,7 @@ import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, paymentInfoSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
+import os from "os";
 import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
 import { generateDepartmentTicket, getDepartmentsWithItems } from "./departmentReceiptGenerator";
 
@@ -1027,7 +1028,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({
           printers,
           debug: {
-            platform: require('os').platform(),
+            platform: os.platform(),
             cache: cacheStatus,
             timestamp: new Date().toISOString()
           }
