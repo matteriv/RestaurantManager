@@ -268,7 +268,7 @@ export function PosInterface() {
   // Payment mutation with auto-print integration
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      const response = await apiRequest('POST', '/api/payments/process', paymentData);
+      const response = await apiRequest('POST', '/api/payments', paymentData);
       return response.json();
     },
     onSuccess: async (paymentResponse) => {
@@ -286,9 +286,17 @@ export function PosInterface() {
       setOrderNotes('');
       setShowPaymentDialog(false);
       
+      // Enhanced feedback for multi-department printing
+      const departmentCount = paymentResponse.departmentReceiptUrls ? Object.keys(paymentResponse.departmentReceiptUrls).length : 0;
+      const totalTickets = 1 + departmentCount; // Customer receipt + department tickets
+      
+      const feedbackMessage = departmentCount > 0 
+        ? `Generating ${totalTickets} tickets: 1 customer receipt + ${departmentCount} department ticket(s)`
+        : "Generating customer receipt";
+      
       toast({
-        title: "Payment processed",
-        description: "Processing automatic printing...",
+        title: "Payment processed successfully",
+        description: feedbackMessage,
       });
       
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });

@@ -201,7 +201,14 @@ export class AutoPrintService {
       });
     }
 
-    console.log(`📋 Generated ${jobs.length} print jobs`);
+    // Enhanced logging for multi-department tickets
+    const customerJobs = jobs.filter(job => job.type === 'customer_receipt');
+    const departmentJobs = jobs.filter(job => job.type === 'department_ticket');
+    
+    console.log(`📋 Generated ${jobs.length} print jobs:`);
+    console.log(`  → ${customerJobs.length} customer receipt(s)`);
+    console.log(`  → ${departmentJobs.length} department ticket(s)${departmentJobs.length > 0 ? ' for: ' + departmentJobs.map(job => job.departmentCode).join(', ') : ''}`);
+    
     return jobs;
   }
 
