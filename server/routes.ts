@@ -3,17 +3,46 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, LogoSettingKey, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, paymentInfoSchema, type InsertOrderLine } from "@shared/schema";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, LogoSettingKey, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, insertManualPrinterSchema, paymentInfoSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
 import os from "os";
 import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
 import { generateDepartmentTicket, getDepartmentsWithItems } from "./departmentReceiptGenerator";
 import { printDocument, getPrintJobStatus, cancelPrintJob, getPrinterQueue, type PrintOptions, printerNameSchema, jobIdSchema, printOptionsSchema, contentSchema } from "./cupsInterface";
+import { Socket } from "net";
 
 interface WebSocketClient extends WebSocket {
   isAlive?: boolean;
   clientType?: 'pos' | 'kds' | 'customer' | 'admin';
+}
+
+// Helper function to test printer connectivity
+async function testPrinterConnection(ipAddress: string, port: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    const socket = new Socket();
+    
+    socket.setTimeout(3000); // 3 second timeout
+    
+    socket.on('connect', () => {
+      const responseTime = Date.now() - startTime;
+      socket.destroy();
+      resolve(responseTime);
+    });
+    
+    socket.on('timeout', () => {
+      socket.destroy();
+      reject(new Error('Connection timeout'));
+    });
+    
+    socket.on('error', (err) => {
+      socket.destroy();
+      reject(new Error(`Connection failed: ${err.message}`));
+    });
+    
+    socket.connect(port, ipAddress);
+  });
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1080,6 +1109,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error refreshing printers:", error);
       res.status(500).json({ message: "Failed to refresh printers" });
+    }
+  });
+
+  // Manual Printer Configuration routes
+  app.get('/api/printers/manual', isAuthenticated, async (req: any, res) => {
+    try {
+      const manualPrinters = await storage.getManualPrinters();
+      res.json(manualPrinters);
+    } catch (error) {
+      console.error("Error fetching manual printers:", error);
+      res.status(500).json({ message: "Failed to fetch manual printers" });
+    }
+  });
+
+  app.post('/api/printers/manual', isAuthenticated, async (req: any, res) => {
+    try {
+      const manualPrinterData = insertManualPrinterSchema.parse(req.body);
+      
+      // Check if updating existing printer
+      if (req.body.id) {
+        const updated = await storage.updateManualPrinter(req.body.id, manualPrinterData);
+        res.json(updated);
+      } else {
+        const created = await storage.createManualPrinter(manualPrinterData);
+        res.status(201).json(created);
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid printer configuration", 
+          errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+        });
+      }
+      console.error("Error managing manual printer:", error);
+      res.status(500).json({ message: "Failed to save manual printer" });
+    }
+  });
+
+  app.delete('/api/printers/manual/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteManualPrinter(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting manual printer:", error);
+      res.status(500).json({ message: "Failed to delete manual printer" });
+    }
+  });
+
+  // Test manual printer connectivity
+  app.post('/api/printers/test', isAuthenticated, async (req: any, res) => {
+    try {
+      const { ipAddress, port, protocol } = req.body;
+      
+      // Security: Validate request body
+      const testSchema = z.object({
+        ipAddress: z.string().ip({ version: "v4" }).refine((ip) => {
+          // Validate RFC1918 private IP ranges only
+          const octets = ip.split('.').map(Number);
+          if (octets[0] === 192 && octets[1] === 168) return true; // 192.168.0.0/16
+          if (octets[0] === 10) return true; // 10.0.0.0/8
+          if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true; // 172.16.0.0/12
+          return false;
+        }, "IP address must be in a private RFC1918 range"),
+        port: z.number().int().refine((port) => [9100, 631, 515].includes(port), "Invalid port"),
+        protocol: z.enum(['raw9100', 'ipp'])
+      });
+      
+      const validatedData = testSchema.parse({ ipAddress, port, protocol });
+      
+      // Test printer connectivity with timeout
+      const testResult = await Promise.race([
+        testPrinterConnection(validatedData.ipAddress, validatedData.port),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection timeout')), 3000))
+      ]);
+      
+      res.json({
+        success: true,
+        status: 'online',
+        message: `Printer at ${validatedData.ipAddress}:${validatedData.port} is reachable`,
+        responseTime: testResult
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid test parameters", 
+          errors: error.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+        });
+      }
+      
+      console.warn(`Printer test failed: ${error.message}`);
+      res.json({
+        success: false,
+        status: 'offline',
+        message: error.message.includes('timeout') ? 'Connection timeout (3s)' : 'Connection failed',
+        error: error.message
+      });
     }
   });
 

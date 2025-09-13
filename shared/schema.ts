@@ -122,6 +122,11 @@ export const printStatusEnum = pgEnum('print_status', [
   'pending', 'success', 'failed', 'retry'
 ]);
 
+// Manual printer protocol enum
+export const manualPrinterProtocolEnum = pgEnum('manual_printer_protocol', [
+  'raw9100', 'ipp'
+]);
+
 // Orders
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -446,6 +451,20 @@ export const printLogs = pgTable("print_logs", {
   index("IDX_print_logs_terminal_id").on(table.terminalId),
 ]);
 
+// Manual printers for network printer configuration
+export const manualPrinters = pgTable("manual_printers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // User-defined printer name
+  ipAddress: varchar("ip_address").notNull(), // Network IP address
+  protocol: manualPrinterProtocolEnum("protocol").notNull().default('raw9100'),
+  port: integer("port").notNull().default(9100),
+  isDefault: boolean("is_default").default(false),
+  capabilities: text("capabilities"), // JSON string for printer capabilities
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations for printer tables
 export const printerTerminalsRelations = relations(printerTerminals, ({ many }) => ({
   printLogs: many(printLogs, {
@@ -502,6 +521,29 @@ export const insertPrintLogSchema = createInsertSchema(printLogs).omit({
   createdAt: true,
 });
 
+export const insertManualPrinterSchema = createInsertSchema(manualPrinters).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  // Add strict validation for security
+  ipAddress: z.string().ip({ version: "v4" }).refine((ip) => {
+    // Validate RFC1918 private IP ranges only
+    const octets = ip.split('.').map(Number);
+    if (octets[0] === 192 && octets[1] === 168) return true; // 192.168.0.0/16
+    if (octets[0] === 10) return true; // 10.0.0.0/8
+    if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true; // 172.16.0.0/12
+    return false;
+  }, "IP address must be in a private RFC1918 range (192.168.x.x, 10.x.x.x, or 172.16-31.x.x)"),
+  port: z.number().int().refine((port) => {
+    // Whitelist known printer ports
+    const allowedPorts = [9100, 631, 515];
+    return allowedPorts.includes(port);
+  }, "Port must be one of: 9100 (raw TCP), 631 (IPP), or 515 (LPR)"),
+  name: z.string().min(1).max(50).regex(/^[a-zA-Z0-9_\-\s]+$/, "Name can only contain letters, numbers, spaces, hyphens, and underscores"),
+  capabilities: z.string().optional()
+});
+
 // Types for printer tables
 export type PrinterTerminal = typeof printerTerminals.$inferSelect;
 export type InsertPrinterTerminal = z.infer<typeof insertPrinterTerminalSchema>;
@@ -509,6 +551,8 @@ export type PrinterDepartment = typeof printerDepartments.$inferSelect;
 export type InsertPrinterDepartment = z.infer<typeof insertPrinterDepartmentSchema>;
 export type PrintLog = typeof printLogs.$inferSelect;
 export type InsertPrintLog = z.infer<typeof insertPrintLogSchema>;
+export type ManualPrinter = typeof manualPrinters.$inferSelect;
+export type InsertManualPrinter = z.infer<typeof insertManualPrinterSchema>;
 
 // Extended types for API responses
 export type PrinterDepartmentWithDepartment = PrinterDepartment & {

@@ -12,6 +12,7 @@ import {
   printerTerminals,
   printerDepartments,
   printLogs,
+  manualPrinters,
   type User,
   type UpsertUser,
   type Department,
@@ -43,6 +44,8 @@ import {
   type PrinterDepartmentWithDepartment,
   type PrintLog,
   type InsertPrintLog,
+  type ManualPrinter,
+  type InsertManualPrinter,
   LOGO_SETTING_KEYS,
 } from "@shared/schema";
 import { db } from "./db";
@@ -130,6 +133,13 @@ export interface IStorage {
   // Print Log operations
   createPrintLog(printLog: InsertPrintLog): Promise<PrintLog>;
   getPrintLogs(filters?: { orderId?: string; status?: string; startDate?: Date; endDate?: Date }): Promise<PrintLog[]>;
+
+  // Manual Printer operations
+  getManualPrinters(): Promise<ManualPrinter[]>;
+  getManualPrinter(id: string): Promise<ManualPrinter | undefined>;
+  createManualPrinter(manualPrinter: InsertManualPrinter): Promise<ManualPrinter>;
+  updateManualPrinter(id: string, manualPrinter: Partial<InsertManualPrinter>): Promise<ManualPrinter>;
+  deleteManualPrinter(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -944,6 +954,56 @@ export class DatabaseStorage implements IStorage {
       : db.select().from(printLogs);
 
     return await query.orderBy(desc(printLogs.createdAt));
+  }
+
+  // Manual Printer operations
+  async getManualPrinters(): Promise<ManualPrinter[]> {
+    return await db.select().from(manualPrinters).where(eq(manualPrinters.isActive, true)).orderBy(manualPrinters.name);
+  }
+
+  async getManualPrinter(id: string): Promise<ManualPrinter | undefined> {
+    const [manualPrinter] = await db.select().from(manualPrinters).where(eq(manualPrinters.id, id));
+    return manualPrinter;
+  }
+
+  async createManualPrinter(manualPrinterData: InsertManualPrinter): Promise<ManualPrinter> {
+    // If this is being set as default, clear other defaults first
+    if (manualPrinterData.isDefault) {
+      await db.update(manualPrinters)
+        .set({ isDefault: false })
+        .where(eq(manualPrinters.isDefault, true));
+    }
+
+    const [manualPrinter] = await db
+      .insert(manualPrinters)
+      .values(manualPrinterData)
+      .returning();
+    return manualPrinter;
+  }
+
+  async updateManualPrinter(id: string, manualPrinterData: Partial<InsertManualPrinter>): Promise<ManualPrinter> {
+    // If this is being set as default, clear other defaults first
+    if (manualPrinterData.isDefault) {
+      await db.update(manualPrinters)
+        .set({ isDefault: false })
+        .where(eq(manualPrinters.isDefault, true));
+    }
+
+    const [manualPrinter] = await db
+      .update(manualPrinters)
+      .set({
+        ...manualPrinterData,
+        updatedAt: new Date(),
+      })
+      .where(eq(manualPrinters.id, id))
+      .returning();
+    return manualPrinter;
+  }
+
+  async deleteManualPrinter(id: string): Promise<void> {
+    await db.update(manualPrinters)
+      .set({ isActive: false })
+      .where(eq(manualPrinters.id, id));
   }
 }
 
