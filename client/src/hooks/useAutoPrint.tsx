@@ -106,14 +106,37 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
           
           if (opts.showToastNotifications) {
             if (result.success) {
+              // Count how many used fallback
+              const fallbackJobs = result.printJobs?.filter(job => job.usedFallback)?.length || 0;
+              const networkJobs = result.successfulJobs - fallbackJobs;
+              
+              let description = `${result.successfulJobs}/${result.totalJobs} stampe completate`;
+              if (fallbackJobs > 0 && networkJobs > 0) {
+                description += ` (${networkJobs} rete, ${fallbackJobs} browser)`;
+              } else if (fallbackJobs > 0) {
+                description += ` tramite browser`;
+              } else {
+                description += ` tramite rete`;
+              }
+              
               toast({
                 title: "Stampa completata",
-                description: `${result.successfulJobs}/${result.totalJobs} stampe eseguite con successo`,
+                description,
               });
             } else {
+              const failedAfterFallback = result.printJobs?.filter(job => 
+                job.status === 'failed' && job.usedFallback
+              )?.length || 0;
+              
+              let description = `${result.failedJobs}/${result.totalJobs} stampe fallite`;
+              if (failedAfterFallback > 0) {
+                description += ` (anche con browser fallback)`;
+              }
+              description += `. Clicca per riprovare.`;
+              
               toast({
                 title: "Errore stampa",
-                description: `${result.failedJobs}/${result.totalJobs} stampe fallite. Clicca per riprovare.`,
+                description,
                 variant: "destructive",
                 action: result.failedJobs > 0 ? (
                   <ToastAction altText="Riprova stampe fallite" onClick={async () => {
@@ -149,9 +172,15 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
           updatePrintJobInState(job);
           
           if (opts.showToastNotifications) {
-            const message = job.type === 'customer_receipt' 
-              ? 'Stampando scontrino cliente...'
-              : `Stampando ticket ${job.departmentCode}...`;
+            const jobType = job.type === 'customer_receipt' 
+              ? 'scontrino cliente'
+              : `ticket ${job.departmentCode}`;
+              
+            const method = job.printerName === 'browser_default' || job.usedFallback 
+              ? 'browser'
+              : `stampante ${job.printerName}`;
+              
+            const message = `Stampando ${jobType} tramite ${method}...`;
             
             // Only show if this notification hasn't been shown recently
             if (!notificationHistoryRef.current.includes(job.id)) {
@@ -179,19 +208,30 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
       },
       {
         event: 'print-job-failed',
-        handler: (job: PrintJob) => {
-          console.error('💥 Print job failed:', job.id, job.error);
-          updatePrintJobInState(job);
+        handler: (jobData: any) => {
+          console.error('💥 Print job failed:', jobData.id, jobData.finalError);
+          updatePrintJobInState(jobData);
           
           if (opts.showToastNotifications) {
-            const message = job.type === 'customer_receipt' 
-              ? 'Errore stampa scontrino cliente'
-              : `Errore stampa ticket ${job.departmentCode}`;
+            const jobType = jobData.type === 'customer_receipt' 
+              ? 'scontrino cliente'
+              : `ticket ${jobData.departmentCode}`;
+              
+            const fallbackInfo = jobData.triedFallback 
+              ? ` (tentato anche browser fallback)`
+              : ` (prova manuale con browser)`;
+              
+            const errorSummary = jobData.networkAttempts > 0 && jobData.fallbackAttempts > 0
+              ? `Falliti ${jobData.networkAttempts} tentativi di rete e ${jobData.fallbackAttempts} browser`
+              : jobData.networkAttempts > 0 
+              ? `Falliti ${jobData.networkAttempts} tentativi di rete`
+              : 'Stampa fallita';
             
             toast({
-              title: message,
-              description: job.error || "Errore sconosciuto",
+              title: `Errore stampa ${jobType}`,
+              description: `${errorSummary}${fallbackInfo}`,
               variant: "destructive",
+              duration: 6000,
               action: (
                 <ToastAction altText="Riprova stampa" onClick={async () => {
                   await retryFailedJobs();
@@ -210,11 +250,64 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
           updatePrintJobInState(job);
           
           if (opts.showToastNotifications) {
+            const retryReason = job.errorType === 'network' ? 'connessione di rete'
+              : job.errorType === 'printer' ? 'stampante'
+              : job.errorType === 'timeout' ? 'timeout'
+              : 'errore sconosciuto';
+                
             toast({
               title: "Ritentativo stampa",
-              description: `Ritentativo ${job.attempts}/${job.maxAttempts}...`,
+              description: `Ritentativo ${job.attempts}/${job.maxAttempts} per ${retryReason}...`,
               duration: 2000,
             });
+          }
+        }
+      },
+      {
+        event: 'print-fallback-started',
+        handler: (data: { job: PrintJob; reason: string }) => {
+          console.log('🌐 Print fallback started:', data.job.id, 'reason:', data.reason);
+          updatePrintJobInState(data.job);
+          
+          if (opts.showToastNotifications) {
+            const reasonText = data.reason === 'network' ? 'errore di rete'
+              : data.reason === 'printer' ? 'stampante offline'
+              : data.reason === 'timeout' ? 'timeout connessione'
+              : 'errore di sistema';
+              
+            const jobType = data.job.type === 'customer_receipt' 
+              ? 'scontrino cliente' 
+              : `ticket ${data.job.departmentCode}`;
+              
+            toast({
+              title: "Stampa con browser",
+              description: `${reasonText.charAt(0).toUpperCase() + reasonText.slice(1)} - usando stampa browser per ${jobType}`,
+              duration: 3000,
+            });
+          }
+        }
+      },
+      {
+        event: 'browser-print-started',
+        handler: (data: { job: PrintJob; method: string }) => {
+          console.log('🖨️ Browser print started:', data.job.id);
+          
+          if (opts.showToastNotifications && !notificationHistoryRef.current.includes(`browser-${data.job.id}`)) {
+            const jobType = data.job.type === 'customer_receipt' 
+              ? 'scontrino cliente' 
+              : `ticket ${data.job.departmentCode}`;
+              
+            toast({
+              title: "Finestra stampa aperta",
+              description: `Controlla la finestra popup per stampare il ${jobType}`,
+              duration: 4000,
+            });
+            
+            // Add to notification history
+            notificationHistoryRef.current.push(`browser-${data.job.id}`);
+            if (notificationHistoryRef.current.length > opts.maxNotificationHistory) {
+              notificationHistoryRef.current.shift();
+            }
           }
         }
       }
