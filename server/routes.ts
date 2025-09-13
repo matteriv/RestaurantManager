@@ -904,6 +904,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast order update
       broadcastMessage('new-order', { order: { ...order, orderLines: [] } });
       
+      // Broadcast daily sales update for real-time POS totals
+      broadcastMessage('daily-sales-updated', { 
+        date: new Date().toISOString().split('T')[0],
+        message: 'Payment processed - sales data updated'
+      }, 'pos');
+      
       res.json({ 
         message: 'Payment processed successfully - receipt ready for printing',
         orderId: order.id,

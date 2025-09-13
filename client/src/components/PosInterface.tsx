@@ -133,14 +133,17 @@ export function PosInterface() {
   });
 
 
-  // Daily sales data
+  // Daily sales data - optimized for real-time updates
+  const currentDate = new Date().toISOString().split('T')[0];
   const { data: dailySales = { total: 0, orderCount: 0, avgOrderValue: 0 } } = useQuery({
-    queryKey: ['/api/analytics/daily-sales', new Date().toISOString().split('T')[0]],
+    queryKey: ['/api/analytics/daily-sales', currentDate],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/analytics/daily-sales?date=${new Date().toISOString().split('T')[0]}`);
+      const response = await apiRequest('GET', `/api/analytics/daily-sales?date=${currentDate}`);
       return response.json();
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 15000, // Refresh every 15 seconds for faster updates
+    staleTime: 10000, // Consider data stale after 10 seconds
+    refetchOnWindowFocus: true, // Refresh when user returns to window
   });
 
   // Mutations
@@ -158,6 +161,9 @@ export function PosInterface() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
+      // Also trigger immediate refetch for today's data
+      queryClient.refetchQueries({ queryKey: ['/api/analytics/daily-sales', currentDate] });
+      console.log('🍽️ Daily sales query invalidated after order creation');
     },
     onError: (error) => {
       toast({
@@ -287,6 +293,9 @@ export function PosInterface() {
       
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
+      // Also trigger immediate refetch for today's data
+      queryClient.refetchQueries({ queryKey: ['/api/analytics/daily-sales', currentDate] });
+      console.log('💰 Daily sales query invalidated after payment processing');
       
       // Trigger auto-print if payment response contains receipt URLs
       if (autoPrint.isEnabled && (paymentResponse.receiptUrls || paymentResponse.departmentReceiptUrls)) {
@@ -356,16 +365,27 @@ export function PosInterface() {
     }
   }, [editingPrinter, manualPrinterForm]);
 
-  // Handle WebSocket messages
+  // Handle WebSocket messages for real-time updates
   useEffect(() => {
     if (lastMessage) {
       switch (lastMessage.type) {
         case 'order-status-updated':
           queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
           break;
+        case 'daily-sales-updated':
+          // Real-time sales update received from WebSocket
+          console.log('📊 Real-time sales update received via WebSocket');
+          queryClient.invalidateQueries({ queryKey: ['/api/analytics/daily-sales'] });
+          queryClient.refetchQueries({ queryKey: ['/api/analytics/daily-sales', currentDate] });
+          toast({
+            title: "Sales Updated",
+            description: "Daily totals have been refreshed with latest data.",
+            duration: 2000,
+          });
+          break;
       }
     }
-  }, [lastMessage, queryClient]);
+  }, [lastMessage, queryClient, currentDate]);
 
   const addItemToOrder = (menuItem: MenuItem) => {
     const existingItem = orderItems.find(item => 
