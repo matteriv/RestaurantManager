@@ -448,6 +448,367 @@ export function PosInterface() {
   };
 
   return (
-    <div>POS Interface - Testing JSX</div>
+    <div className="h-screen bg-gray-50 dark:bg-gray-900 flex">
+      {/* Sidebar with Menu Categories */}
+      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Logo size="sm" />
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">POS Terminal</h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">ID: {terminalId}</p>
+            </div>
+          </div>
+          
+          {/* Auto-print status indicator */}
+          <div className="flex items-center space-x-2">
+            {autoPrint.isEnabled ? (
+              <CheckCircle2 className="w-4 h-4 text-green-500" data-testid="status-auto-print-enabled" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-yellow-500" data-testid="status-auto-print-disabled" />
+            )}
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowPrinterDialog(true)}
+              data-testid="button-printer-settings"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Daily Sales */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Sales Today</h2>
+          <div className="space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">Total Sales:</span>
+              <span className="font-medium text-gray-900 dark:text-white" data-testid="text-daily-sales">€{dailySales.total.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">Orders:</span>
+              <span className="font-medium text-gray-900 dark:text-white" data-testid="text-order-count">{dailySales.orderCount}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Categories */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Categories</h2>
+            <div className="space-y-2">
+              {categories.map(category => {
+                const IconComponent = getCategoryIcon(category.name);
+                return (
+                  <Button
+                    key={category.id}
+                    variant={selectedCategory === category.id ? "default" : "ghost"}
+                    className="w-full justify-start"
+                    onClick={() => setSelectedCategory(category.id)}
+                    data-testid={`button-category-${category.id}`}
+                  >
+                    <IconComponent className="w-4 h-4 mr-2" />
+                    {category.name}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Menu Items Grid */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {menuItems.map(item => (
+              <Card
+                key={item.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => addItemToOrder(item)}
+                data-testid={`card-menu-item-${item.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-md mb-3 flex items-center justify-center">
+                    <Package className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="font-semibold text-sm text-gray-900 dark:text-white mb-1" data-testid={`text-item-name-${item.id}`}>
+                    {item.name}
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 line-clamp-2">
+                    {item.description}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-gray-900 dark:text-white" data-testid={`text-item-price-${item.id}`}>
+                      €{Number(item.price).toFixed(2)}
+                    </span>
+                    <Badge variant={item.available ? "default" : "secondary"}>
+                      {item.available ? "Available" : "Out of Stock"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Order Summary Footer */}
+        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-6">
+          <div className="grid grid-cols-3 gap-6">
+            {/* Order Items */}
+            <div className="col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Current Order</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowNotesDialog(true)}
+                  data-testid="button-add-notes"
+                >
+                  <StickyNote className="w-4 h-4 mr-2" />
+                  Notes
+                </Button>
+              </div>
+              
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {orderItems.map(item => (
+                  <div key={item.tempId} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded-lg" data-testid={`order-item-${item.tempId}`}>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm text-gray-900 dark:text-white" data-testid={`text-order-item-name-${item.tempId}`}>
+                        {item.menuItem.name}
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        €{Number(item.unitPrice).toFixed(2)} each
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateItemQuantity(item.tempId, -1)}
+                        data-testid={`button-decrease-${item.tempId}`}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </Button>
+                      <span className="w-8 text-center font-medium text-gray-900 dark:text-white" data-testid={`text-quantity-${item.tempId}`}>
+                        {item.quantity}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateItemQuantity(item.tempId, 1)}
+                        data-testid={`button-increase-${item.tempId}`}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(item.tempId)}
+                        data-testid={`button-remove-${item.tempId}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <div className="text-right ml-4">
+                      <span className="font-semibold text-gray-900 dark:text-white" data-testid={`text-item-total-${item.tempId}`}>
+                        €{Number(item.totalPrice).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Order Total & Actions */}
+            <div>
+              <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-300">Subtotal:</span>
+                    <span className="text-gray-900 dark:text-white" data-testid="text-subtotal">€{calculateSubtotal().toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-300">Tax (22%):</span>
+                    <span className="text-gray-900 dark:text-white" data-testid="text-tax">€{calculateTax().toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-bold border-t pt-2">
+                    <span className="text-gray-900 dark:text-white">Total:</span>
+                    <span className="text-gray-900 dark:text-white" data-testid="text-total">€{calculateTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Button
+                  onClick={sendToKitchen}
+                  disabled={orderItems.length === 0 || createOrderMutation.isPending}
+                  className="w-full"
+                  variant="outline"
+                  data-testid="button-send-kitchen"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send to Kitchen
+                </Button>
+                <Button
+                  onClick={() => setShowPaymentDialog(true)}
+                  disabled={orderItems.length === 0}
+                  className="w-full"
+                  data-testid="button-payment"
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Process Payment
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes Dialog */}
+      <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
+        <DialogContent data-testid="dialog-notes">
+          <DialogHeader>
+            <DialogTitle>Order Notes</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={orderNotes}
+            onChange={(e) => setOrderNotes(e.target.value)}
+            placeholder="Add special instructions or notes..."
+            className="min-h-[100px]"
+            data-testid="input-order-notes"
+          />
+          <Button onClick={() => setShowNotesDialog(false)} data-testid="button-save-notes">
+            Save Notes
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-md" data-testid="dialog-payment">
+          <DialogHeader>
+            <DialogTitle>Process Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+              <div className="flex justify-between text-lg font-bold">
+                <span>Total Amount:</span>
+                <span data-testid="text-payment-total">€{calculateTotal().toFixed(2)}</span>
+              </div>
+            </div>
+            <Button
+              onClick={processPayment}
+              disabled={paymentMutation.isPending}
+              className="w-full"
+              data-testid="button-confirm-payment"
+            >
+              {paymentMutation.isPending ? (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Confirm Payment
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Printer Settings Dialog */}
+      <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
+        <DialogContent data-testid="dialog-printer-settings">
+          <DialogHeader>
+            <DialogTitle>Printer Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                Auto-print Status
+              </label>
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  {autoPrint.isEnabled ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-yellow-500" />
+                  )}
+                  <span className="text-sm" data-testid="text-auto-print-status">
+                    {autoPrint.isEnabled ? 'Auto-print enabled' : 'Auto-print disabled'}
+                  </span>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    size="sm"
+                    variant={autoPrint.isEnabled ? "secondary" : "default"}
+                    onClick={autoPrint.enableAutoPrint}
+                    data-testid="button-enable-auto-print"
+                  >
+                    Enable
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={!autoPrint.isEnabled ? "secondary" : "default"}
+                    onClick={autoPrint.disableAutoPrint}
+                    data-testid="button-disable-auto-print"
+                  >
+                    Disable
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Print Queue Status */}
+            {autoPrint.state.printJobs.length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">
+                  Print Queue Status
+                </label>
+                <div className="space-y-2">
+                  {autoPrint.state.printJobs.map((job, index) => (
+                    <div key={job.id || index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm" data-testid={`print-job-${job.id}`}>
+                      <span>{job.type === 'customer_receipt' ? 'Customer Receipt' : `Kitchen ${job.departmentCode}`}</span>
+                      <Badge variant={
+                        job.status === 'success' ? 'default' :
+                        job.status === 'failed' ? 'destructive' :
+                        job.status === 'printing' ? 'secondary' : 'outline'
+                      }>
+                        {job.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between">
+              <Button
+                variant="outline"
+                onClick={() => setShowPrinterDialog(false)}
+                data-testid="button-close-printer-settings"
+              >
+                Close
+              </Button>
+              {autoPrint.state.canRetry && (
+                <Button
+                  onClick={() => autoPrint.actions.retryFailedJobs()}
+                  data-testid="button-retry-failed-prints"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Retry Failed
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
