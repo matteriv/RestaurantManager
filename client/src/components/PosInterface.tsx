@@ -316,14 +316,14 @@ export function PosInterface() {
     const paymentData = {
       orderItems: orderItems.map(item => ({
         menuItemId: item.menuItemId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-        notes: item.notes,
+        quantity: Number(item.quantity || 1), // Ensure it's a number
+        unitPrice: String(item.unitPrice), // Ensure it's a string
+        totalPrice: String(item.totalPrice), // Ensure it's a string
+        notes: item.notes || '', // Ensure it's not undefined
       })),
       total: calculateTotal().toString(),
-      notes: orderNotes,
-      receiptMethod: 'print',
+      notes: orderNotes || '', // Ensure it's not undefined
+      receiptMethod: 'print' as const,
     };
 
     paymentMutation.mutate(paymentData);
