@@ -268,7 +268,7 @@ export function PosInterface() {
   // Payment mutation with auto-print integration
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      const response = await apiRequest('POST', '/api/payments', paymentData);
+      const response = await apiRequest('POST', '/api/payments/process', paymentData);
       return response.json();
     },
     onSuccess: async (paymentResponse) => {

@@ -910,13 +910,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'Payment processed - sales data updated'
       }, 'pos');
       
+      // Get order with full details to determine departments with items
+      const orderWithDetails = await storage.getOrder(order.id);
+      
+      // Include receipt generation URLs in response
+      const receiptUrls = {
+        printable: `/api/receipts/customer/${order.id}`,
+        printablePost: `/api/receipts/customer/${order.id}` // for POST with custom payment data
+      };
+      
+      // Generate department receipt URLs
+      let departmentReceiptUrls: Record<string, string> = {};
+      if (orderWithDetails) {
+        try {
+          const departmentIds = getDepartmentsWithItems(orderWithDetails);
+          const departments = await storage.getDepartments();
+          
+          departmentReceiptUrls = departmentIds.reduce((urls, departmentId) => {
+            const department = departments.find(d => d.id === departmentId);
+            if (department) {
+              urls[department.code] = `/api/receipts/department/${order.id}/${department.code}`;
+            }
+            return urls;
+          }, {} as Record<string, string>);
+        } catch (error) {
+          console.error("Error generating department receipt URLs:", error);
+          // Continue without department URLs if there's an error
+        }
+      }
+      
       res.json({ 
         message: 'Payment processed successfully - receipt ready for printing',
         orderId: order.id,
         orderNumber,
         receiptId,
         qrCode: qrCodeDataUrl,
-        receiptMethod: 'print'
+        receiptMethod: 'print',
+        receiptUrls,
+        departmentReceiptUrls,
+        receiptReady: true
       });
     } catch (error) {
       console.error("Error processing payment:", error);
