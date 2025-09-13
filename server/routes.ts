@@ -3,12 +3,13 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
-import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, paymentInfoSchema, type InsertOrderLine } from "@shared/schema";
+import { insertOrderSchema, insertOrderLineSchema, insertPaymentSchema, insertAuditLogSchema, insertDepartmentSchema, insertSettingSchema, insertMenuItemSchema, logoSettingsSchema, LOGO_SETTING_KEYS, LogoSettingKey, insertPrinterTerminalSchema, insertPrinterDepartmentSchema, insertPrintLogSchema, paymentInfoSchema, type InsertOrderLine } from "@shared/schema";
 import { z } from "zod";
 import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
 import os from "os";
 import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
 import { generateDepartmentTicket, getDepartmentsWithItems } from "./departmentReceiptGenerator";
+import { printDocument, getPrintJobStatus, cancelPrintJob, getPrinterQueue, type PrintOptions, printerNameSchema, jobIdSchema, printOptionsSchema, contentSchema } from "./cupsInterface";
 
 interface WebSocketClient extends WebSocket {
   isAlive?: boolean;
@@ -920,10 +921,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Printer Terminal Configuration routes
+  // Printer Terminal Configuration routes - SECURE IMPLEMENTATION
   app.get('/api/printers/terminals', isAuthenticated, async (req: any, res) => {
     try {
       const posTerminalId = req.query.posTerminalId as string;
+      
+      // Security: Validate posTerminalId parameter
+      if (posTerminalId) {
+        const terminalIdValidation = z.string().min(1).max(255).regex(/^[a-zA-Z0-9_\-\.]+$/).safeParse(posTerminalId);
+        if (!terminalIdValidation.success) {
+          return res.status(400).json({ 
+            message: "Invalid POS terminal ID format",
+            errors: terminalIdValidation.error.errors
+          });
+        }
+      }
+      
       const printerTerminals = await storage.getPrinterTerminals(posTerminalId);
       res.json(printerTerminals);
     } catch (error) {
@@ -934,7 +947,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/printers/terminals', isAuthenticated, async (req: any, res) => {
     try {
+      // Security: Enhanced validation for printer terminal data
       const printerTerminalData = insertPrinterTerminalSchema.parse(req.body);
+      
+      // Security: Additional validation for printer name if present
+      if (printerTerminalData.printerName) {
+        const printerNameValidation = printerNameSchema.safeParse(printerTerminalData.printerName);
+        if (!printerNameValidation.success) {
+          return res.status(400).json({ 
+            message: "Invalid printer name format", 
+            errors: printerNameValidation.error.errors 
+          });
+        }
+      }
       const printerTerminal = await storage.createPrinterTerminal(printerTerminalData);
       res.status(201).json(printerTerminal);
     } catch (error) {
@@ -1133,60 +1158,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Extract print options from request body
+      const printOptions: PrintOptions = {
+        copies,
+        silent,
+        pageSize: req.body.pageSize,
+        orientation: req.body.orientation,
+        colorMode: req.body.colorMode,
+        duplex: req.body.duplex,
+        quality: req.body.quality,
+        mediaType: req.body.mediaType
+      };
+
       // Log the print request
       try {
         await storage.createPrintLog({
-          printerName,
-          documentUrl: url,
-          copies,
-          status: 'attempted',
-          userId,
+          printType: 'receipt',
+          targetPrinter: printerName,
+          content: url,
+          status: 'pending',
           printedAt: new Date(),
         });
       } catch (logError) {
         console.warn('Failed to log print request:', logError);
       }
 
-      // In a real implementation, this would interface with system printing APIs
-      // For now, we'll simulate the printing process and return success
-      // This could be extended to use libraries like:
-      // - node-printer for Windows/Mac/Linux printing
-      // - pdf-to-printer for PDF printing
-      // - Or integrate with CUPS on Linux systems
-
-      // Simulate printing delay
-      const printDelay = Math.random() * 2000 + 500; // 500-2500ms
+      // Use real physical printing via CUPS
+      console.log(`🖨️ Attempting physical print with options:`, printOptions);
       
-      await new Promise(resolve => setTimeout(resolve, printDelay));
+      const printResult = await printDocument(printerName, url, printOptions);
+      
+      console.log(`${printResult.success ? '✅' : '❌'} Print job result:`, printResult);
 
-      // For development/demo purposes, we'll always return success
-      // In production, you'd implement actual printer communication here
-      const printResult = {
-        success: true,
-        message: `Document sent to printer ${printerName}`,
-        jobId: `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        printerName,
-        copies,
-        timestamp: new Date().toISOString()
-      };
-
-      console.log(`✅ Print job completed:`, printResult);
-
-      // Log successful print
+      // Log print completion (success or failure)
       try {
         await storage.createPrintLog({
-          printerName,
-          documentUrl: url,
-          copies,
-          status: 'completed',
-          userId,
+          printType: 'receipt',
+          targetPrinter: printerName,
+          content: url,
+          status: printResult.success ? 'success' : 'failed',
           printedAt: new Date(),
         });
       } catch (logError) {
         console.warn('Failed to log print completion:', logError);
       }
 
-      res.json(printResult);
+      // Return result with appropriate status code
+      const statusCode = printResult.success ? 200 : 500;
+      res.status(statusCode).json(printResult);
 
     } catch (error) {
       console.error('❌ Direct print error:', error);
@@ -1197,20 +1216,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = req.user?.claims?.sub || 'unknown';
         
         await storage.createPrintLog({
-          printerName: printerName || 'unknown',
-          documentUrl: url || 'unknown',
-          copies,
+          printType: 'receipt',
+          targetPrinter: printerName || 'unknown',
+          content: url || 'unknown',
           status: 'failed',
-          userId,
           printedAt: new Date(),
         });
       } catch (logError) {
         console.warn('Failed to log print error:', logError);
       }
 
+      const errorMessage = error instanceof Error ? error.message : 'Print job failed';
       res.status(500).json({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'Print job failed' 
+        error: errorMessage,
+        printerName: req.body.printerName || 'unknown',
+        copies: req.body.copies || 1,
+        timestamp: new Date().toISOString(),
+        fallbackToBrowser: true // Suggest fallback to browser printing
+      });
+    }
+  });
+
+  // Print job management endpoints
+  app.get('/api/print/jobs/:jobId/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      // Security: Validate job ID format before processing
+      const jobIdValidation = jobIdSchema.safeParse(jobId);
+      if (!jobIdValidation.success) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Invalid job ID format - only alphanumeric, hyphens, underscores and dots allowed",
+          jobId: 'invalid'
+        });
+      }
+      
+      const jobStatus = await getPrintJobStatus(jobId);
+      res.json(jobStatus);
+    } catch (error) {
+      console.error('Error getting print job status:', error);
+      res.status(500).json({ 
+        error: 'Failed to get print job status',
+        jobId: 'error'
+      });
+    }
+  });
+
+  app.delete('/api/print/jobs/:jobId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { jobId } = req.params;
+      
+      // Security: Validate job ID format before processing
+      const jobIdValidation = jobIdSchema.safeParse(jobId);
+      if (!jobIdValidation.success) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Invalid job ID format - only alphanumeric, hyphens, underscores and dots allowed",
+          jobId: 'invalid'
+        });
+      }
+      
+      const cancelled = await cancelPrintJob(jobId);
+      
+      if (cancelled) {
+        res.json({ 
+          success: true, 
+          message: `Print job ${jobId} cancelled successfully`,
+          jobId 
+        });
+      } else {
+        res.status(404).json({ 
+          success: false, 
+          error: `Print job ${jobId} not found or cannot be cancelled`,
+          jobId 
+        });
+      }
+    } catch (error) {
+      console.error('Error cancelling print job:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to cancel print job',
+        jobId: req.params.jobId 
+      });
+    }
+  });
+
+  app.get('/api/print/queue/:printerName?', isAuthenticated, async (req: any, res) => {
+    try {
+      const { printerName } = req.params;
+      
+      // Security: Validate printer name format if provided
+      if (printerName && printerName !== 'undefined') {
+        const printerNameValidation = printerNameSchema.safeParse(printerName);
+        if (!printerNameValidation.success) {
+          return res.status(400).json({ 
+            error: "Invalid printer name format - only alphanumeric, hyphens, underscores and dots allowed",
+            printerName: 'invalid'
+          });
+        }
+      }
+      
+      const sanitizedPrinterName = printerName && printerName !== 'undefined' ? printerName : undefined;
+      const queue = await getPrinterQueue(sanitizedPrinterName);
+      res.json({
+        printerName: sanitizedPrinterName || 'all',
+        queue,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error getting printer queue:', error);
+      res.status(500).json({ 
+        error: 'Failed to get printer queue',
+        printerName: 'error'
       });
     }
   });
