@@ -461,11 +461,10 @@ export function AdminPanel() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-9">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="overview">{t('admin.overview')}</TabsTrigger>
             <TabsTrigger value="menu">{t('admin.menu')}</TabsTrigger>
             <TabsTrigger value="departments">Reparti</TabsTrigger>
-            <TabsTrigger value="tables">{t('admin.tables')}</TabsTrigger>
             <TabsTrigger value="orders">{t('admin.orders')}</TabsTrigger>
             <TabsTrigger value="inventory">{t('admin.inventory')}</TabsTrigger>
             <TabsTrigger value="analytics">{t('admin.analytics')}</TabsTrigger>
@@ -635,7 +634,7 @@ export function AdminPanel() {
                       Nuovo Articolo
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-lg">
+                  <DialogContent className="max-w-md">
                     <DialogHeader>
                       <DialogTitle>{editingItem ? 'Modifica Articolo' : 'Nuovo Articolo'}</DialogTitle>
                     </DialogHeader>
@@ -893,66 +892,6 @@ export function AdminPanel() {
             </div>
           </TabsContent>
 
-          {/* Tables Management Tab */}
-          <TabsContent value="tables" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Gestione Tavoli</h2>
-              <Dialog open={showTableDialog} onOpenChange={setShowTableDialog}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nuovo Tavolo
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Nuovo Tavolo</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={tableForm.handleSubmit(onSubmitTable)} className="space-y-4">
-                    <div>
-                      <Label htmlFor="tableNumber">Numero Tavolo</Label>
-                      <Input type="number" id="tableNumber" {...tableForm.register('number', { required: true })} />
-                    </div>
-                    <div>
-                      <Label htmlFor="seats">Posti</Label>
-                      <Input type="number" id="seats" {...tableForm.register('seats', { required: true })} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="xPosition">Posizione X</Label>
-                        <Input type="number" id="xPosition" {...tableForm.register('xPosition')} />
-                      </div>
-                      <div>
-                        <Label htmlFor="yPosition">Posizione Y</Label>
-                        <Input type="number" id="yPosition" {...tableForm.register('yPosition')} />
-                      </div>
-                    </div>
-                    <Button type="submit" className="w-full">{t('common.save')}</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            <div className="grid grid-cols-6 gap-4">
-              {tables.map(table => (
-                <Card key={table.id} className={`p-4 text-center ${
-                  table.status === 'free' ? 'bg-green-50 border-green-200' :
-                  table.status === 'occupied' ? 'bg-red-50 border-red-200' :
-                  'bg-yellow-50 border-yellow-200'
-                }`}>
-                  <div className="text-2xl font-bold">{table.number}</div>
-                  <div className="text-sm text-gray-600">{table.seats} posti</div>
-                  <Badge variant={
-                    table.status === 'free' ? 'default' :
-                    table.status === 'occupied' ? 'destructive' :
-                    'secondary'
-                  } className="mt-2">
-                    {t(`status.${table.status}`)}
-                  </Badge>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
 
           {/* Orders Management Tab */}
           <TabsContent value="orders" className="space-y-6">

@@ -901,7 +901,7 @@ export function PosInterface() {
 
       {/* Printer Settings Dialog */}
       <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
-        <DialogContent className="max-w-2xl" data-testid="dialog-printer-settings">
+        <DialogContent className="max-w-lg" data-testid="dialog-printer-settings">
           <DialogHeader>
             <DialogTitle>Configurazione Stampanti</DialogTitle>
           </DialogHeader>
