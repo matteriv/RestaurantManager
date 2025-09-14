@@ -949,6 +949,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get order with full details to determine departments with items
       const orderWithDetails = await storage.getOrder(order.id);
       
+      console.log('🔍 DEBUG: Order with details retrieved:', {
+        orderId: order.id,
+        orderWithDetails: orderWithDetails ? 'EXISTS' : 'NULL/UNDEFINED',
+        orderLinesCount: orderWithDetails?.orderLines?.length || 0
+      });
+      
       // Include receipt generation URLs in response
       const receiptUrls = {
         printable: `/api/receipts/customer/${order.id}`,
@@ -959,25 +965,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let departmentReceiptUrls: Record<string, string> = {};
       if (orderWithDetails) {
         try {
+          // Debug: Log order lines and their menu items
+          console.log('🔍 DEBUG: Order lines details:', 
+            orderWithDetails.orderLines.map(line => ({
+              itemId: line.menuItemId,
+              itemName: line.menuItem?.name || 'UNKNOWN',
+              departmentId: line.menuItem?.departmentId || 'NULL'
+            }))
+          );
+          
           const departmentIds = getDepartmentsWithItems(orderWithDetails);
+          console.log('🔍 DEBUG: Department IDs found:', departmentIds);
+          
           const departments = await storage.getDepartments();
+          console.log('🔍 DEBUG: Available departments:', 
+            departments.map(d => ({ id: d.id, name: d.name, code: d.code }))
+          );
           
           departmentReceiptUrls = departmentIds.reduce((urls, departmentId) => {
+            console.log('🔍 DEBUG: Processing department ID:', departmentId);
+            
             if (departmentId === NO_DEPARTMENT_CODE) {
               // Special case for items without department
               urls[NO_DEPARTMENT_CODE] = `/api/receipts/department/${order.id}/${NO_DEPARTMENT_CODE}`;
+              console.log('🔍 DEBUG: Added NO_DEPARTMENT URL:', urls[NO_DEPARTMENT_CODE]);
             } else {
               const department = departments.find(d => d.id === departmentId);
               if (department) {
                 urls[department.code] = `/api/receipts/department/${order.id}/${department.code}`;
+                console.log('🔍 DEBUG: Added department URL:', {
+                  code: department.code,
+                  url: urls[department.code]
+                });
+              } else {
+                console.log('⚠️ DEBUG: Department not found for ID:', departmentId);
               }
             }
             return urls;
           }, {} as Record<string, string>);
+          
+          console.log('🔍 DEBUG: Final department receipt URLs:', departmentReceiptUrls);
+          
         } catch (error) {
-          console.error("Error generating department receipt URLs:", error);
+          console.error("❌ ERROR generating department receipt URLs:", error);
+          console.error("❌ ERROR stack:", error instanceof Error ? error.stack : 'No stack available');
           // Continue without department URLs if there's an error
         }
+      } else {
+        console.log('⚠️ DEBUG: orderWithDetails is null/undefined - cannot generate department URLs');
       }
       
       res.json({ 
