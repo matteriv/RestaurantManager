@@ -874,15 +874,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Define payment processing schema
+  // Define payment processing schema with backward compatibility
   const paymentProcessSchema = z.object({
     tableId: z.string().optional(),
     orderItems: z.array(z.object({
-      menuItemId: z.string(),
+      // Support both 'menuItemId' and 'id' for flexibility
+      menuItemId: z.string().optional(),
+      id: z.string().optional(),
+      // Support both 'unitPrice' and 'price'
+      unitPrice: z.string().optional(),
+      price: z.string().optional(),
+      // totalPrice is optional as it can be calculated
+      totalPrice: z.string().optional(),
       quantity: z.number().positive(),
-      unitPrice: z.string(),
-      totalPrice: z.string(),
       notes: z.string().optional(),
+      // Allow additional fields like 'name' and 'department_id' but don't require them
+      name: z.string().optional(),
+      department_id: z.string().optional(),
+    }).refine(data => (data.menuItemId || data.id) && (data.unitPrice || data.price), {
+      message: "Either menuItemId or id is required, and either unitPrice or price is required"
     })),
     total: z.string(),
     notes: z.string().optional(),
@@ -907,6 +917,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { tableId, orderItems, total, notes, receiptMethod } = validatedData;
       const userId = req.user.claims.sub;
       
+      // Normalize orderItems to support both field name formats
+      const normalizedOrderItems = orderItems.map(item => ({
+        menuItemId: item.menuItemId || item.id || '',
+        unitPrice: item.unitPrice || item.price || '0',
+        totalPrice: item.totalPrice || 
+          (item.unitPrice ? String(Number(item.unitPrice) * item.quantity) : 
+           item.price ? String(Number(item.price) * item.quantity) : '0'),
+        quantity: item.quantity,
+        notes: item.notes || ''
+      }));
+      
       console.log('✅ Payment data validated successfully:', {
         itemCount: orderItems.length,
         total: total,
@@ -927,7 +948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Create order lines
-      for (const item of orderItems) {
+      for (const item of normalizedOrderItems) {
         await storage.createOrderLine({
           orderId: order.id,
           menuItemId: item.menuItemId,
@@ -941,7 +962,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update table status to occupied if not already
       if (tableId) {
-        await storage.updateTableStatus(tableId, 'occupied');
+        try {
+          await storage.updateTableStatus(tableId, 'occupied');
+        } catch (error) {
+          console.warn(`⚠️ Could not update table status for table ${tableId}:`, error);
+          // Continue processing even if table update fails
+        }
       }
 
       // Generate unique receipt ID and QR code
