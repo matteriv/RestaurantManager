@@ -1395,6 +1395,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Print Spool endpoint - Returns print jobs in a standardized format
+  app.get('/api/print/spool', isAuthenticated, async (req: any, res) => {
+    try {
+      // Get all print logs from the database
+      const printLogs = await storage.getPrintLogs();
+      
+      // Get departments for mapping department codes
+      const departments = await storage.getDepartments();
+      const departmentMap = new Map(departments.map(d => [d.id, d]));
+      
+      // Transform print logs into the expected spool format
+      const spoolJobs = printLogs.map(log => {
+        // Determine document type based on printType
+        let documentType = 'unknown';
+        let departmentCode = null;
+        let priority = 3; // Default lowest priority
+        
+        if (log.printType === 'customer_receipt') {
+          documentType = 'customer_receipt';
+          priority = 1; // Highest priority for customer receipts
+        } else if (log.printType === 'department_ticket') {
+          documentType = 'department_ticket';
+          priority = 2; // Medium priority for department tickets
+          
+          // Get department code if departmentId is available
+          if (log.departmentId) {
+            const dept = departmentMap.get(log.departmentId);
+            if (dept) {
+              // Use the department code (e.g., '001' for Cucina, '002' for Cocktail)
+              departmentCode = dept.code;
+            }
+          }
+        } else if (log.printType === 'test_page') {
+          documentType = 'test_page';
+          priority = 3;
+        }
+        
+        return {
+          jobId: log.id,
+          documentType: documentType,
+          departmentCode: departmentCode,
+          status: log.status || 'pending',
+          priority: priority,
+          timestamp: log.createdAt || new Date().toISOString(),
+          orderId: log.orderId || null,
+          // Additional fields for debugging
+          targetPrinter: log.targetPrinter,
+          attempts: log.attempts || 0,
+          errorMessage: log.errorMessage || null,
+        };
+      });
+      
+      // Sort by priority (ascending) and timestamp (descending)
+      spoolJobs.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority; // Lower priority number = higher priority
+        }
+        // If same priority, sort by timestamp (newer first)
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      });
+      
+      res.json(spoolJobs);
+    } catch (error) {
+      console.error("Error fetching print spool:", error);
+      // Always return JSON even on error
+      res.status(500).json({ 
+        error: "Failed to fetch print spool",
+        message: error instanceof Error ? error.message : "Unknown error",
+        jobs: [] // Return empty array on error
+      });
+    }
+  });
+
   // Direct printing API for physical printers
   app.post('/api/print/direct', isAuthenticated, async (req: any, res) => {
     try {
