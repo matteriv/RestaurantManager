@@ -689,19 +689,21 @@ export function filterOrderLinesWithoutDepartment(order: OrderWithDetails) {
 /**
  * Generate all department tickets for an order
  */
-export function generateAllDepartmentTickets(
+export async function generateAllDepartmentTickets(
   order: OrderWithDetails,
   departments: Department[]
-): Map<string, string> {
+): Promise<Map<string, string>> {
   const tickets = new Map<string, string>();
   const orderDepartmentIds = getDepartmentsWithItems(order);
   
-  orderDepartmentIds.forEach(departmentId => {
+  // Process each department sequentially to avoid overwhelming QR generation
+  for (const departmentId of orderDepartmentIds) {
     const department = departments.find(d => d.id === departmentId);
     if (department) {
-      tickets.set(department.code, generateDepartmentTicket(order, department));
+      const ticketHtml = await generateDepartmentTicket(order, department);
+      tickets.set(department.code, ticketHtml);
     }
-  });
+  }
   
   return tickets;
 }
