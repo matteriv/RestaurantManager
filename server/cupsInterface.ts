@@ -153,6 +153,130 @@ async function validatePrinter(printerName: string): Promise<{ valid: boolean; p
 }
 
 /**
+ * Combine multiple print URLs into a single HTML document with page breaks
+ */
+export async function combinePrintUrls(urls: string[]): Promise<string> {
+  if (!urls || urls.length === 0) {
+    throw new Error('No URLs provided for batch printing');
+  }
+
+  console.log(`📄 Combining ${urls.length} URLs into single document`);
+  
+  const combinedHtml = [`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Batch Print Document</title>
+  <style>
+    @media print {
+      body { 
+        margin: 0; 
+        padding: 0; 
+        font-family: monospace; 
+        font-size: 12px;
+      }
+      .print-page {
+        page-break-after: always;
+        margin: 0;
+        padding: 10px;
+      }
+      .print-page:last-child {
+        page-break-after: auto;
+      }
+      .no-print { 
+        display: none !important; 
+      }
+    }
+    .print-page {
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+`];
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    try {
+      // Security: Validate URL format
+      const urlValidation = urlSchema.safeParse(url);
+      if (!urlValidation.success) {
+        console.warn(`❌ Invalid URL ${i + 1}: ${url}`);
+        continue;
+      }
+
+      console.log(`📄 Fetching content ${i + 1}/${urls.length}: ${url}`);
+      
+      // Fetch the content from the URL
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'User-Agent': 'Restaurant-POS-Printer/1.0'
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      });
+
+      if (!response.ok) {
+        console.warn(`❌ Failed to fetch URL ${i + 1}: ${response.status} ${response.statusText}`);
+        continue;
+      }
+
+      const content = await response.text();
+      
+      // Extract body content if it's a full HTML document
+      let bodyContent = content;
+      const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      if (bodyMatch) {
+        bodyContent = bodyMatch[1];
+      } else {
+        // If no body tag, clean up any HTML/head tags
+        bodyContent = content
+          .replace(/<\!DOCTYPE[^>]*>/gi, '')
+          .replace(/<html[^>]*>/gi, '')
+          .replace(/<\/html>/gi, '')
+          .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+          .replace(/<body[^>]*>/gi, '')
+          .replace(/<\/body>/gi, '');
+      }
+
+      // Add this content as a print page
+      combinedHtml.push(`
+  <div class="print-page" data-source-url="${url.replace(/"/g, '&quot;')}" data-page="${i + 1}">
+    ${bodyContent}
+  </div>
+`);
+
+      console.log(`✅ Added content ${i + 1}/${urls.length} to batch document`);
+
+    } catch (error) {
+      console.warn(`❌ Error fetching URL ${i + 1} (${url}):`, error);
+      // Add an error page instead of failing completely
+      combinedHtml.push(`
+  <div class="print-page" data-source-url="${url.replace(/"/g, '&quot;')}" data-page="${i + 1}">
+    <h3>Error Loading Document ${i + 1}</h3>
+    <p>URL: ${url}</p>
+    <p>Error: ${error instanceof Error ? error.message : 'Unknown error'}</p>
+  </div>
+`);
+    }
+  }
+
+  combinedHtml.push(`
+</body>
+</html>
+`);
+
+  const finalHtml = combinedHtml.join('');
+  console.log(`📄 Combined document ready: ${finalHtml.length} characters, ${urls.length} pages`);
+  
+  return finalHtml;
+}
+
+/**
  * Download content from URL to temporary file - SECURE IMPLEMENTATION
  */
 async function downloadContent(url: string): Promise<string> {

@@ -222,7 +222,7 @@ export class AutoPrintService {
   }
 
   /**
-   * Process the print queue
+   * Process the print queue with smart batch printing
    */
   private async processQueue(): Promise<AutoPrintResult> {
     if (this.isProcessing) {
@@ -234,14 +234,25 @@ export class AutoPrintService {
     console.log(`🔄 Processing ${this.printQueue.length} print jobs`);
 
     try {
-      // Process jobs in priority order
-      for (const job of this.printQueue) {
-        if (job.status === 'pending' || job.status === 'retry') {
-          await this.processPrintJob(job);
-          
-          // Small delay between jobs to avoid overwhelming printer
-          await this.delay(500);
+      // Group jobs by printer for batch printing
+      const jobsByPrinter = this.groupJobsByPrinter();
+      
+      for (const [printerName, jobs] of jobsByPrinter.entries()) {
+        const pendingJobs = jobs.filter(job => job.status === 'pending' || job.status === 'retry');
+        
+        if (pendingJobs.length === 0) continue;
+        
+        if (pendingJobs.length === 1) {
+          // Single job - use normal processing
+          await this.processPrintJob(pendingJobs[0]);
+        } else {
+          // Multiple jobs for same printer - use batch printing
+          console.log(`📄 Batch printing ${pendingJobs.length} jobs to ${printerName}`);
+          await this.processBatchPrintJobs(printerName, pendingJobs);
         }
+        
+        // Small delay between printers to avoid overwhelming system
+        await this.delay(300);
       }
 
       const result = this.getQueueResult();
@@ -254,6 +265,129 @@ export class AutoPrintService {
       return result;
     } finally {
       this.isProcessing = false;
+    }
+  }
+
+  /**
+   * Group print jobs by printer name for batch processing
+   */
+  private groupJobsByPrinter(): Map<string, PrintJob[]> {
+    const jobsByPrinter = new Map<string, PrintJob[]>();
+    
+    // Sort jobs by priority first
+    const sortedJobs = [...this.printQueue].sort((a, b) => a.priority - b.priority);
+    
+    for (const job of sortedJobs) {
+      const printerName = job.printerName || 'browser_default';
+      
+      if (!jobsByPrinter.has(printerName)) {
+        jobsByPrinter.set(printerName, []);
+      }
+      jobsByPrinter.get(printerName)!.push(job);
+    }
+    
+    return jobsByPrinter;
+  }
+
+  /**
+   * Process multiple jobs as a single batch print
+   */
+  private async processBatchPrintJobs(printerName: string, jobs: PrintJob[]): Promise<void> {
+    try {
+      console.log(`🖨️ Starting batch print: ${jobs.length} documents to ${printerName}`);
+      
+      // Mark all jobs as printing
+      jobs.forEach(job => {
+        job.status = 'printing';
+        job.attempts++;
+        job.lastAttemptAt = new Date();
+        this.emit('print-job-started', job);
+      });
+
+      // Extract URLs and check if we can batch print
+      const canBatchPrint = jobs.every(job => 
+        job.printerName && 
+        job.printerName !== 'browser_default' && 
+        !job.usedFallback
+      );
+
+      if (canBatchPrint && printerName !== 'browser_default') {
+        // Use batch print API for network printing
+        const urls = jobs.map(job => job.url);
+        
+        try {
+          console.log(`🌐 Sending batch print request: ${urls.length} URLs to ${printerName}`);
+          
+          const response = await apiRequest('POST', '/api/print/batch', {
+            urls: urls,
+            printerName: printerName,
+            copies: 1,
+            silent: true
+          });
+
+          if (!response.ok) {
+            throw new Error(`Batch print failed: ${response.status} ${response.statusText}`);
+          }
+
+          const result = await response.json();
+          
+          if (result.success) {
+            // Mark all jobs as successful
+            jobs.forEach(job => {
+              job.status = 'success';
+              console.log(`✅ Batch print job ${job.id} completed successfully`);
+              this.emit('print-job-success', job);
+            });
+            
+            console.log(`✅ Batch print completed: ${jobs.length} documents printed to ${printerName}`);
+            return;
+          } else {
+            throw new Error(result.error || 'Batch print failed on server');
+          }
+          
+        } catch (batchError) {
+          console.warn(`❌ Batch print failed, falling back to individual jobs:`, batchError);
+          
+          // Fall back to individual job processing
+          for (const job of jobs) {
+            job.status = 'pending'; // Reset status
+            job.attempts--; // Reset attempt count
+            await this.processPrintJob(job);
+            await this.delay(300); // Small delay between individual jobs
+          }
+          return;
+        }
+      } else {
+        // Use browser printing for fallback jobs
+        console.log(`🌐 Using browser printing for ${jobs.length} jobs`);
+        
+        for (const job of jobs) {
+          try {
+            job.usedFallback = true;
+            job.fallbackAttempts = (job.fallbackAttempts || 0) + 1;
+            
+            await this.printWithBrowser(job.url, job);
+            
+            job.status = 'success';
+            console.log(`✅ Browser print job ${job.id} completed successfully`);
+            this.emit('print-job-success', job);
+            
+            // Small delay between browser prints to avoid conflicts
+            await this.delay(800);
+            
+          } catch (error) {
+            await this.handlePrintJobError(job, error);
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.error(`❌ Batch print processing failed:`, error);
+      
+      // Handle error for all jobs
+      for (const job of jobs) {
+        await this.handlePrintJobError(job, error);
+      }
     }
   }
 

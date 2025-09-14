@@ -115,7 +115,7 @@ export const connectionTypeEnum = pgEnum('connection_type', [
 ]);
 
 export const printTypeEnum = pgEnum('print_type', [
-  'receipt', 'department_ticket'
+  'receipt', 'department_ticket', 'batch_receipt'
 ]);
 
 export const printStatusEnum = pgEnum('print_status', [

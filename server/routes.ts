@@ -9,7 +9,7 @@ import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./print
 import os from "os";
 import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
 import { generateDepartmentTicket, getDepartmentsWithItems, generateNoDepartmentTicket, NO_DEPARTMENT_CODE, NO_DEPARTMENT_NAME } from "./departmentReceiptGenerator";
-import { printDocument, getPrintJobStatus, cancelPrintJob, getPrinterQueue, type PrintOptions, printerNameSchema, jobIdSchema, printOptionsSchema, contentSchema } from "./cupsInterface";
+import { printDocument, getPrintJobStatus, cancelPrintJob, getPrinterQueue, type PrintOptions, printerNameSchema, jobIdSchema, printOptionsSchema, contentSchema, combinePrintUrls } from "./cupsInterface";
 import { Socket } from "net";
 
 interface WebSocketClient extends WebSocket {
@@ -1421,6 +1421,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
         copies: req.body.copies || 1,
         timestamp: new Date().toISOString(),
         fallbackToBrowser: true // Suggest fallback to browser printing
+      });
+    }
+  });
+
+  // Batch print endpoint for sequential printing (multiple pages in single job)
+  app.post('/api/print/batch', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('🖨️ Batch print API request:', JSON.stringify(req.body, null, 2));
+      
+      const { urls, printerName, copies = 1, silent = true } = req.body;
+
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "URLs array is required for batch printing"
+        });
+      }
+
+      if (!printerName) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Printer name is required"
+        });
+      }
+
+      console.log(`🖨️ Batch print: ${urls.length} documents to ${printerName}`);
+
+      // Extract print options
+      const printOptions: PrintOptions = {
+        copies,
+        silent,
+        pageSize: req.body.pageSize,
+        orientation: req.body.orientation,
+        colorMode: req.body.colorMode,
+        duplex: req.body.duplex,
+        quality: req.body.quality,
+        mediaType: req.body.mediaType
+      };
+
+      // Download and combine all URLs into a single HTML document
+      const combinedContent = await combinePrintUrls(urls);
+      
+      // Log the batch print request
+      try {
+        await storage.createPrintLog({
+          printType: 'batch_receipt',
+          targetPrinter: printerName,
+          content: `Batch: ${urls.length} documents`,
+          status: 'pending',
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log batch print request:', logError);
+      }
+
+      // Print the combined document as a single job
+      console.log(`🖨️ Printing combined document with ${urls.length} pages`);
+      const printResult = await printDocument(printerName, combinedContent, printOptions);
+      
+      console.log(`${printResult.success ? '✅' : '❌'} Batch print result:`, printResult);
+
+      // Log batch print completion
+      try {
+        await storage.createPrintLog({
+          printType: 'batch_receipt',
+          targetPrinter: printerName,
+          content: `Batch: ${urls.length} documents`,
+          status: printResult.success ? 'success' : 'failed',
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log batch print completion:', logError);
+      }
+
+      const statusCode = printResult.success ? 200 : 500;
+      res.status(statusCode).json({
+        ...printResult,
+        documentsProcessed: urls.length,
+        batchPrint: true
+      });
+
+    } catch (error) {
+      console.error('❌ Batch print error:', error);
+      
+      // Log failed batch print
+      try {
+        const { urls, printerName } = req.body;
+        await storage.createPrintLog({
+          printType: 'batch_receipt',
+          targetPrinter: printerName || 'unknown',
+          content: `Batch failed: ${urls?.length || 0} documents`,
+          status: 'failed',
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log batch print error:', logError);
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Batch print failed';
+      res.status(500).json({ 
+        success: false, 
+        error: errorMessage,
+        printerName: req.body.printerName || 'unknown',
+        copies: req.body.copies || 1,
+        timestamp: new Date().toISOString(),
+        batchPrint: true,
+        fallbackToBrowser: true
       });
     }
   });
