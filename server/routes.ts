@@ -8,7 +8,7 @@ import { z } from "zod";
 import { getAvailablePrinters, clearPrinterCache, getCacheStatus } from "./printerDetection";
 import os from "os";
 import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receiptGenerator";
-import { generateDepartmentTicket, getDepartmentsWithItems } from "./departmentReceiptGenerator";
+import { generateDepartmentTicket, getDepartmentsWithItems, generateNoDepartmentTicket, NO_DEPARTMENT_CODE, NO_DEPARTMENT_NAME } from "./departmentReceiptGenerator";
 import { printDocument, getPrintJobStatus, cancelPrintJob, getPrinterQueue, type PrintOptions, printerNameSchema, jobIdSchema, printOptionsSchema, contentSchema } from "./cupsInterface";
 import { Socket } from "net";
 
@@ -569,9 +569,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const departments = await storage.getDepartments();
           
           departmentReceiptUrls = departmentIds.reduce((urls, departmentId) => {
-            const department = departments.find(d => d.id === departmentId);
-            if (department) {
-              urls[department.code] = `/api/receipts/department/${paymentData.orderId}/${department.code}`;
+            if (departmentId === NO_DEPARTMENT_CODE) {
+              // Special case for items without department
+              urls[NO_DEPARTMENT_CODE] = `/api/receipts/department/${paymentData.orderId}/${NO_DEPARTMENT_CODE}`;
+            } else {
+              const department = departments.find(d => d.id === departmentId);
+              if (department) {
+                urls[department.code] = `/api/receipts/department/${paymentData.orderId}/${department.code}`;
+              }
             }
             return urls;
           }, {} as Record<string, string>);
@@ -654,7 +659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate receipt HTML
-      const receiptHTML = generateCustomerReceiptFromSettings(order, settings, paymentInfo);
+      const receiptHTML = await generateCustomerReceiptFromSettings(order, settings, paymentInfo);
 
       // Set appropriate headers for HTML response
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -714,7 +719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       // Generate receipt HTML
-      const receiptHTML = generateCustomerReceiptFromSettings(order, settings, paymentInfo);
+      const receiptHTML = await generateCustomerReceiptFromSettings(order, settings, paymentInfo);
 
       // Return HTML for printing
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -765,7 +770,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Get department information
+      // Handle special case for no-department items
+      if (departmentCode === NO_DEPARTMENT_CODE) {
+        // Generate no-department ticket HTML
+        const ticketHTML = await generateNoDepartmentTicket(order);
+        
+        // Set appropriate headers for HTML response
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        
+        res.send(ticketHTML);
+        return;
+      }
+
+      // Get department information for regular departments
       const departments = await storage.getDepartments();
       const department = departments.find(d => d.code === departmentCode);
       
@@ -779,7 +797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Generate department ticket HTML
-      const ticketHTML = generateDepartmentTicket(order, department);
+      const ticketHTML = await generateDepartmentTicket(order, department);
 
       // Set appropriate headers for HTML response
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -927,9 +945,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const departments = await storage.getDepartments();
           
           departmentReceiptUrls = departmentIds.reduce((urls, departmentId) => {
-            const department = departments.find(d => d.id === departmentId);
-            if (department) {
-              urls[department.code] = `/api/receipts/department/${order.id}/${department.code}`;
+            if (departmentId === NO_DEPARTMENT_CODE) {
+              // Special case for items without department
+              urls[NO_DEPARTMENT_CODE] = `/api/receipts/department/${order.id}/${NO_DEPARTMENT_CODE}`;
+            } else {
+              const department = departments.find(d => d.id === departmentId);
+              if (department) {
+                urls[department.code] = `/api/receipts/department/${order.id}/${department.code}`;
+              }
             }
             return urls;
           }, {} as Record<string, string>);

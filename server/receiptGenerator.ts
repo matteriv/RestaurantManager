@@ -1,4 +1,5 @@
 import type { OrderWithDetails, Setting } from "@shared/schema";
+import QRCode from 'qrcode';
 
 export interface RestaurantInfo {
   name: string;
@@ -229,6 +230,19 @@ function generateReceiptCSS(): string {
         text-align: center;
       }
       
+      .qr-code img {
+        max-width: 100px;
+        height: auto;
+        margin: 4px auto;
+        display: block;
+      }
+      
+      .qr-code-label {
+        font-size: 8px;
+        margin-top: 2px;
+        color: #666;
+      }
+      
       .separator {
         text-align: center;
         margin: 6px 0;
@@ -246,13 +260,34 @@ function generateReceiptCSS(): string {
 }
 
 /**
+ * Generate QR code as base64 data URI
+ */
+async function generateQRCode(data: string): Promise<string> {
+  try {
+    const qrDataUri = await QRCode.toDataURL(data, {
+      type: 'image/png',
+      width: 150,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    return qrDataUri;
+  } catch (error) {
+    console.error('Error generating QR code:', error);
+    return '';
+  }
+}
+
+/**
  * Generate the main receipt HTML content
  */
-function generateReceiptHTML(
+async function generateReceiptHTML(
   order: OrderWithDetails,
   restaurantInfo: RestaurantInfo,
   paymentInfo: PaymentInfo
-): string {
+): Promise<string> {
   const orderDate = formatDate(order.createdAt ? new Date(order.createdAt) : new Date());
   
   // Calculate totals if not present
@@ -310,6 +345,9 @@ function generateReceiptHTML(
   if (paymentInfo.transactionId) {
     paymentHTML += `<div class="payment-line"><span>Trans. ID:</span><span>${paymentInfo.transactionId}</span></div>\n`;
   }
+  
+  // Generate QR code for the order
+  const qrCode = await generateQRCode(`Ordine: ${order.orderNumber}`);
   
   return `
     <!DOCTYPE html>
@@ -399,9 +437,10 @@ function generateReceiptHTML(
                 <div class="tax-info">Scontrino non fiscale</div>
                 <div class="tax-info">Conservare per eventuali reclami</div>
                 
-                ${order.qrCode ? `
+                ${qrCode ? `
                 <div class="qr-code">
-                    <img src="${order.qrCode}" alt="QR Code" style="width: 15mm; height: 15mm;">
+                    <img src="${qrCode}" alt="QR Code Ordine ${order.orderNumber}" style="max-width: 100px; height: auto;" />
+                    <div class="qr-code-label">Ordine: ${order.orderNumber}</div>
                 </div>
                 ` : ''}
             </div>
@@ -429,25 +468,25 @@ export function parseRestaurantInfo(settings: Setting[]): RestaurantInfo {
 }
 
 /**
- * Generate customer receipt HTML for thermal printer
+ * Generate customer receipt HTML for thermal printer with QR code
  * Main export function
  */
-export function generateCustomerReceipt(
+export async function generateCustomerReceipt(
   order: OrderWithDetails,
   restaurantInfo: RestaurantInfo,
   paymentInfo: PaymentInfo
-): string {
-  return generateReceiptHTML(order, restaurantInfo, paymentInfo);
+): Promise<string> {
+  return await generateReceiptHTML(order, restaurantInfo, paymentInfo);
 }
 
 /**
- * Generate customer receipt using settings from database
+ * Generate customer receipt using settings from database with QR code
  */
-export function generateCustomerReceiptFromSettings(
+export async function generateCustomerReceiptFromSettings(
   order: OrderWithDetails,
   settings: Setting[],
   paymentInfo: PaymentInfo
-): string {
+): Promise<string> {
   const restaurantInfo = parseRestaurantInfo(settings);
-  return generateCustomerReceipt(order, restaurantInfo, paymentInfo);
+  return await generateCustomerReceipt(order, restaurantInfo, paymentInfo);
 }
