@@ -963,8 +963,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerPhone: null,
       });
 
-      // Receipt printing handled by frontend
-      console.log(`Print receipt requested for Order #${orderNumber} - Receipt ID: ${receiptId}`);
+      // Generate and store print jobs
+      console.log(`🖨️ Generating print jobs for Order #${orderNumber} - Receipt ID: ${receiptId}`);
+      
+      // Get order with full details for receipt generation
+      const orderForReceipt = await storage.getOrder(order.id);
+      
+      if (orderForReceipt) {
+        try {
+          // Get settings for receipt generation
+          const settings = await storage.getSettings();
+          
+          // Payment info for receipt
+          const paymentInfo: PaymentInfo = {
+            method: 'cash',
+            amount: parseFloat(total),
+            amountPaid: parseFloat(total),
+            change: 0,
+            transactionId: receiptId
+          };
+          
+          // Generate customer receipt HTML
+          const customerReceiptHTML = await generateCustomerReceiptFromSettings(orderForReceipt, settings, paymentInfo);
+          
+          // Create print log for customer receipt
+          await storage.createPrintLog({
+            orderId: order.id,
+            printType: 'customer_receipt',
+            departmentCode: null,
+            targetPrinter: null,
+            content: customerReceiptHTML,
+            status: 'pending',
+            printedAt: new Date(),
+          });
+          
+          console.log('✅ Customer receipt added to print spool');
+          
+          // Generate department tickets
+          const departmentIds = getDepartmentsWithItems(orderForReceipt);
+          console.log(`🏢 Generating tickets for ${departmentIds.length} departments`);
+          
+          const departments = await storage.getDepartments();
+          
+          for (const deptId of departmentIds) {
+            try {
+              let ticketHTML: string;
+              let departmentCode: string;
+              
+              if (deptId === NO_DEPARTMENT_CODE) {
+                // Generate ticket for items without department
+                ticketHTML = await generateNoDepartmentTicket(orderForReceipt);
+                departmentCode = NO_DEPARTMENT_CODE;
+              } else {
+                // Find the department
+                const department = departments.find(d => d.id === deptId);
+                if (department) {
+                  ticketHTML = await generateDepartmentTicket(orderForReceipt, department);
+                  departmentCode = department.code;
+                } else {
+                  console.warn(`⚠️ Department not found for ID: ${deptId}`);
+                  continue;
+                }
+              }
+              
+              // Create print log for department ticket
+              await storage.createPrintLog({
+                orderId: order.id,
+                printType: 'department_ticket',
+                departmentCode: departmentCode,
+                targetPrinter: null,
+                content: ticketHTML,
+                status: 'pending',
+                printedAt: new Date(),
+              });
+              
+              console.log(`✅ Department ticket for ${departmentCode} added to print spool`);
+            } catch (deptError) {
+              console.error(`❌ Failed to generate ticket for department ${deptId}:`, deptError);
+            }
+          }
+          
+          console.log(`✅ All print jobs generated for Order #${orderNumber}`);
+        } catch (printError) {
+          console.error('❌ Failed to generate print jobs:', printError);
+          // Continue without failing the payment - print jobs are secondary
+        }
+      }
 
       // Broadcast order update
       broadcastMessage('new-order', { order: { ...order, orderLines: [] } });
