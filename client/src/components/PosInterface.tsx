@@ -268,8 +268,20 @@ export function PosInterface() {
   // Payment mutation with auto-print integration
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
-      const response = await apiRequest('POST', '/api/payments/process', paymentData);
-      return response.json();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+        const response = await apiRequest('POST', '/api/payments/process', paymentData, controller.signal);
+        clearTimeout(timeoutId);
+        return response.json();
+      } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Payment request timed out. Please try again.');
+        }
+        throw error;
+      }
     },
     onSuccess: async (paymentResponse) => {
       // Capture order data before clearing UI state
