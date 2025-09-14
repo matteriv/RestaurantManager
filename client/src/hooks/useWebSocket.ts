@@ -30,7 +30,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.host; // Questo include già porta se presente
+      const hostname = window.location.hostname;
+      const port = window.location.port || (protocol === "wss:" ? "443" : "80");
+      const host = port === "80" || port === "443" ? hostname : `${hostname}:${port}`;
       const wsUrl = `${protocol}//${host}/ws`;
       
       console.log('Connecting to WebSocket:', wsUrl);
