@@ -13,6 +13,7 @@ import { Logo } from '@/components/ui/logo';
 import { useToast } from '@/hooks/use-toast';
 import { useWebSocketContext } from '@/contexts/WebSocketContext';
 import { useAutoPrint } from '@/hooks/useAutoPrint';
+import { AutoPrintService } from '@/services/autoPrintService';
 import { apiRequest } from '@/lib/queryClient';
 import { Plus, Minus, Send, CreditCard, StickyNote, Split, X, Coffee, Utensils, Wine, Dessert, ChefHat, Fish, Pizza, Salad, Soup, Beef, Package, ShoppingCart, Printer, Settings, PrinterCheck, AlertCircle, CheckCircle2, RotateCcw, Monitor, Trash2, TestTube, Wifi, WifiOff, Loader2, Save, Edit, Network } from 'lucide-react';
 import type { MenuItem, MenuCategory, OrderLine, InsertOrderLine, PrinterTerminal, InsertPrinterTerminal, ManualPrinter, InsertManualPrinter } from '@shared/schema';
@@ -59,6 +60,16 @@ export function PosInterface() {
   const [testingPrinter, setTestingPrinter] = useState<string | null>(null);
   const [editingPrinter, setEditingPrinter] = useState<ManualPrinter | null>(null);
   
+  // Add mounting and navigation logging
+  useEffect(() => {
+    console.log('🖥️ POS Interface mounted successfully');
+    console.log('🌐 Current URL:', window.location.href);
+    console.log('📍 Current path:', window.location.pathname);
+    return () => {
+      console.log('🖥️ POS Interface unmounting');
+    };
+  }, []);
+  
   // Generate unique terminal ID
   const getTerminalId = () => {
     let terminalId = localStorage.getItem('pos_terminal_id');
@@ -85,10 +96,26 @@ export function PosInterface() {
   });
 
   // Fetch data with auto-refresh
-  const { data: categories = [] } = useQuery<MenuCategory[]>({
+  const { data: categories = [], isLoading: categoriesLoading, error: categoriesError } = useQuery<MenuCategory[]>({
     queryKey: ['/api/menu/categories'],
     refetchInterval: 60000, // Refresh every minute
+    onSuccess: (data) => {
+      console.log('📋 Menu categories loaded successfully:', data?.length || 0, 'categories');
+    },
+    onError: (error) => {
+      console.error('❌ Failed to load menu categories:', error);
+    }
   });
+  
+  // Log categories loading state
+  useEffect(() => {
+    if (categoriesLoading) {
+      console.log('⏳ Loading menu categories...');
+    }
+    if (categoriesError) {
+      console.error('❌ Categories error:', categoriesError);
+    }
+  }, [categoriesLoading, categoriesError]);
 
   // Fetch available printers
   const { data: availablePrinters = [] } = useQuery<any[]>({
@@ -98,11 +125,7 @@ export function PosInterface() {
 
   // Fetch current printer configuration for this terminal
   const { data: printerConfig } = useQuery<PrinterTerminal[]>({
-    queryKey: ['/api/printers/terminals', terminalId],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/printers/terminals?posTerminalId=${terminalId}`);
-      return response.json();
-    },
+    queryKey: ['/api/printers/terminals', `?posTerminalId=${terminalId}`],
   });
 
   // Fetch manual printers
@@ -123,24 +146,32 @@ export function PosInterface() {
     },
   });
 
-  const { data: menuItems = [] } = useQuery<MenuItem[]>({
-    queryKey: ['/api/menu/items', selectedCategory],
-    queryFn: async () => {
-      const response = await apiRequest('GET', selectedCategory ? `/api/menu/items?categoryId=${selectedCategory}` : '/api/menu/items');
-      return response.json();
-    },
+  const { data: menuItems = [], isLoading: itemsLoading, error: itemsError } = useQuery<MenuItem[]>({
+    queryKey: selectedCategory ? ['/api/menu/items', `?categoryId=${selectedCategory}`] : ['/api/menu/items'],
     refetchInterval: 15000, // Refresh every 15 seconds for products
+    onSuccess: (data) => {
+      console.log('🍽️ Menu items loaded successfully:', data?.length || 0, 'items for category:', selectedCategory || 'all');
+    },
+    onError: (error) => {
+      console.error('❌ Failed to load menu items:', error);
+    }
   });
+  
+  // Log menu items loading state
+  useEffect(() => {
+    if (itemsLoading) {
+      console.log('⏳ Loading menu items for category:', selectedCategory || 'all categories');
+    }
+    if (itemsError) {
+      console.error('❌ Menu items error:', itemsError);
+    }
+  }, [itemsLoading, itemsError, selectedCategory]);
 
 
   // Daily sales data - optimized for real-time updates
   const currentDate = new Date().toISOString().split('T')[0];
   const { data: dailySales = { total: 0, orderCount: 0, avgOrderValue: 0 } } = useQuery({
-    queryKey: ['/api/analytics/daily-sales', currentDate],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/analytics/daily-sales?date=${currentDate}`);
-      return response.json();
-    },
+    queryKey: ['/api/analytics/daily-sales', `?date=${currentDate}`],
     refetchInterval: 15000, // Refresh every 15 seconds for faster updates
     staleTime: 10000, // Consider data stale after 10 seconds
     refetchOnWindowFocus: true, // Refresh when user returns to window
@@ -268,15 +299,29 @@ export function PosInterface() {
   // Payment mutation with auto-print integration
   const paymentMutation = useMutation({
     mutationFn: async (paymentData: any) => {
+      console.log('💳 Starting payment submission:', {
+        items: paymentData.items?.length || 0,
+        total: paymentData.total,
+        terminalId: terminalId
+      });
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
       try {
+        console.log('🚀 Sending payment request to /api/payments/process');
         const response = await apiRequest('POST', '/api/payments/process', paymentData, controller.signal);
         clearTimeout(timeoutId);
-        return response.json();
+        const responseData = await response.json();
+        console.log('✅ Payment processed successfully, response received:', {
+          hasReceiptUrls: !!responseData.receiptUrls,
+          hasDepartmentReceiptUrls: !!responseData.departmentReceiptUrls,
+          departmentCount: responseData.departmentReceiptUrls ? Object.keys(responseData.departmentReceiptUrls).length : 0
+        });
+        return responseData;
       } catch (error) {
         clearTimeout(timeoutId);
+        console.error('❌ Payment processing failed:', error);
         if (error instanceof Error && error.name === 'AbortError') {
           throw new Error('Payment request timed out. Please try again.');
         }
@@ -284,6 +329,15 @@ export function PosInterface() {
       }
     },
     onSuccess: async (paymentResponse) => {
+      console.log('🎉 Payment mutation onSuccess triggered');
+      console.log('📝 Payment response details:', {
+        hasReceiptUrls: !!paymentResponse.receiptUrls,
+        receiptUrlsKeys: paymentResponse.receiptUrls ? Object.keys(paymentResponse.receiptUrls) : [],
+        hasDepartmentReceiptUrls: !!paymentResponse.departmentReceiptUrls,
+        departmentReceiptUrls: paymentResponse.departmentReceiptUrls || {},
+        departmentCount: paymentResponse.departmentReceiptUrls ? Object.keys(paymentResponse.departmentReceiptUrls).length : 0
+      });
+      
       // Capture order data before clearing UI state
       const orderData = {
         items: orderItems,
@@ -292,6 +346,12 @@ export function PosInterface() {
         tax: calculateTax(),
         total: calculateTotal()
       };
+      
+      console.log('💹 Order data captured:', {
+        itemCount: orderData.items.length,
+        total: orderData.total,
+        notes: orderData.notes ? 'yes' : 'no'
+      });
       
       // Clear UI state after capturing data
       setOrderItems([]);
@@ -317,29 +377,65 @@ export function PosInterface() {
       queryClient.refetchQueries({ queryKey: ['/api/analytics/daily-sales', currentDate] });
       console.log('💰 Daily sales query invalidated after payment processing');
       
-      // Trigger auto-print if payment response contains receipt URLs
+      // Enhanced auto-print integration with explicit AutoPrintService call
+      console.log('🔍 AutoPrint status check:', {
+        isEnabled: autoPrint.isEnabled,
+        hasReceiptUrls: !!paymentResponse.receiptUrls,
+        hasDepartmentReceiptUrls: !!paymentResponse.departmentReceiptUrls,
+        terminalId: terminalId
+      });
+      
+      // EXPLICIT AutoPrintService call as required
       if (autoPrint.isEnabled && (paymentResponse.receiptUrls || paymentResponse.departmentReceiptUrls)) {
         try {
-          await autoPrint.actions.processPaymentPrint(
+          console.log('🔥 Triggering autoPrint.actions.processPaymentPrint via hook');
+          
+          // Use the hook's action method instead of direct AutoPrintService call
+          const printResult = await autoPrint.actions.processPaymentPrint(
             terminalId,
             paymentResponse,
             orderData
           );
+          
+          console.log('✅ AutoPrintService result:', {
+            success: printResult.success,
+            totalJobs: printResult.totalJobs,
+            successfulJobs: printResult.successfulJobs,
+            failedJobs: printResult.failedJobs,
+            errors: printResult.errors
+          });
+          
+          if (!printResult.success) {
+            console.warn('⚠️ AutoPrint had some failures, check result details');
+          }
+          
         } catch (error) {
-          console.error('Auto-print failed:', error);
+          console.error('❌ AutoPrint failed completely:', error);
           // Fallback to manual printing if auto-print fails completely
           setTimeout(() => {
+            console.log('🔄 Falling back to manual printing after AutoPrint failure');
             printReceipt(orderData);
           }, 100);
         }
-      } else if (!autoPrint.isEnabled) {
-        // Manual printing when auto-print is disabled
-        setTimeout(() => {
-          printReceipt(orderData);
-        }, 100);
+      } else {
+        console.log('🔍 AutoPrint conditions not met:', {
+          enabled: autoPrint.isEnabled,
+          hasUrls: !!(paymentResponse.receiptUrls || paymentResponse.departmentReceiptUrls)
+        });
+        
+        if (!autoPrint.isEnabled) {
+          console.log('👥 AutoPrint disabled, using manual printing');
+          // Manual printing when auto-print is disabled
+          setTimeout(() => {
+            printReceipt(orderData);
+          }, 100);
+        } else {
+          console.log('⚠️ No receipt URLs found in payment response');
+        }
       }
     },
     onError: (error) => {
+      console.error('❌ Payment mutation onError triggered:', error);
       toast({
         title: "Error",
         description: "Failed to process payment.",

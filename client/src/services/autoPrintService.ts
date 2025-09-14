@@ -318,18 +318,12 @@ export class AutoPrintService {
         try {
           console.log(`🖨️ Sending batch print request: ${urls.length} URLs to ${printerName} (${printerName === 'browser_default' ? 'browser printing' : 'network/CUPS printing'})`);
           
-          const response = await apiRequest('POST', '/api/print/batch', {
+          const result = await apiRequest('POST', '/api/print/batch', {
             urls: urls,
             printerName: printerName,
             copies: 1,
             silent: true
           });
-
-          if (!response.ok) {
-            throw new Error(`Batch print failed: ${response.status} ${response.statusText}`);
-          }
-
-          const result = await response.json();
           
           if (result.success) {
             // Mark all jobs as successful
@@ -541,7 +535,7 @@ export class AutoPrintService {
       console.log(`🖨️ Sending print request to ${printerName} for job ${job.id}`);
       
       // Call backend print API with timeout
-      const response = await apiRequest('POST', '/api/print/direct', {
+      const result = await apiRequest('POST', '/api/print/direct', {
         url: url,
         printerName: printerName,
         copies: 1,
@@ -549,24 +543,6 @@ export class AutoPrintService {
       }, controller.signal);
 
       clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: response.statusText }));
-        
-        // Categorize network errors
-        if (response.status >= 500) {
-          job.errorType = 'printer';
-          throw new Error(`Printer server error (${response.status}): ${errorData.error || response.statusText}`);
-        } else if (response.status === 404) {
-          job.errorType = 'printer';
-          throw new Error(`Printer "${printerName}" not found`);
-        } else {
-          job.errorType = 'network';
-          throw new Error(`Network error (${response.status}): ${errorData.error || response.statusText}`);
-        }
-      }
-
-      const result = await response.json();
       
       if (!result.success) {
         // Categorize printer-specific errors

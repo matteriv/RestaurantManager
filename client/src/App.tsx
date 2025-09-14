@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,9 +14,41 @@ import { AdminPanel } from "@/components/AdminPanel";
 import { DeliveryInterface } from "@/components/DeliveryInterface";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useEffect } from "react";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
+  const [location, setLocation] = useLocation();
+  
+  // Build stamp for bundle verification
+  console.log('🔧 Router build:', '__BUILD_2025-09-14T14:45Z__');
+  
+  // Debug: Check if Router component is running
+  console.log('🔧 Router component executing:', {
+    isAuthenticated,
+    isLoading,
+    location,
+    timestamp: new Date().toISOString()
+  });
+  
+  // UseEffect-based test-mode navigation (recommended React/Wouter pattern)
+  useEffect(() => {
+    try {
+      const viteTestMode = import.meta.env.VITE_TEST_MODE;
+      const host = window.location.hostname;
+      const isLocal = host === 'localhost' || host === '127.0.0.1';
+      const isReplit = host.includes('.replit.dev');
+      const isTestMode = viteTestMode === 'true' || isLocal || isReplit;
+      console.log('🔍 Test-mode nav (effect):', { isAuthenticated, isLoading, location, isTestMode });
+      if (isAuthenticated && !isLoading && isTestMode && location === '/') {
+        console.log('🧪 Test mode detected - redirecting to POS interface via useEffect');
+        console.log('🚀 Navigation from Home to POS interface');
+        setLocation('/pos', { replace: true });
+      }
+    } catch (e) { 
+      console.error('❌ Test-mode nav error:', e); 
+    }
+  }, [isAuthenticated, isLoading, location, setLocation]);
 
   if (isLoading || !isAuthenticated) {
     return (

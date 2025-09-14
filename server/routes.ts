@@ -863,9 +863,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Payment processing endpoint
   app.post('/api/payments/process', isAuthenticated, async (req: any, res) => {
     try {
+      console.log('💳 Payment processing started:', {
+        timestamp: new Date().toISOString(),
+        userId: req.user?.claims?.sub,
+        requestBody: {
+          itemCount: req.body.orderItems?.length || 0,
+          total: req.body.total,
+          tableId: req.body.tableId,
+          receiptMethod: req.body.receiptMethod
+        }
+      });
+      
       const validatedData = paymentProcessSchema.parse(req.body);
       const { tableId, orderItems, total, notes, receiptMethod } = validatedData;
       const userId = req.user.claims.sub;
+      
+      console.log('✅ Payment data validated successfully:', {
+        itemCount: orderItems.length,
+        total: total,
+        tableId: tableId || 'no table',
+        userId: userId
+      });
       
       // Create order first
       const orderNumber = await storage.getNextOrderNumber();
