@@ -565,25 +565,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let departmentReceiptUrls: Record<string, string> = {};
       if (orderWithDetails) {
         try {
+          console.log("🐛 [PAYMENT DEBUG] OrderWithDetails found, orderLines count:", orderWithDetails.orderLines?.length || 0);
+          
+          // Debug: Log menu items and their departmentId
+          orderWithDetails.orderLines?.forEach((line, index) => {
+            console.log(`🐛 [PAYMENT DEBUG] OrderLine ${index}: menuItem.name="${line.menuItem?.name}", departmentId="${line.menuItem?.departmentId}"`);
+          });
+          
           const departmentIds = getDepartmentsWithItems(orderWithDetails);
+          console.log("🐛 [PAYMENT DEBUG] getDepartmentsWithItems returned:", departmentIds);
+          
           const departments = await storage.getDepartments();
+          console.log("🐛 [PAYMENT DEBUG] Available departments:", departments.map(d => ({ id: d.id, code: d.code, name: d.name })));
           
           departmentReceiptUrls = departmentIds.reduce((urls, departmentId) => {
             if (departmentId === NO_DEPARTMENT_CODE) {
               // Special case for items without department
               urls[NO_DEPARTMENT_CODE] = `/api/receipts/department/${paymentData.orderId}/${NO_DEPARTMENT_CODE}`;
+              console.log("🐛 [PAYMENT DEBUG] Added NO_DEPARTMENT URL");
             } else {
               const department = departments.find(d => d.id === departmentId);
               if (department) {
                 urls[department.code] = `/api/receipts/department/${paymentData.orderId}/${department.code}`;
+                console.log(`🐛 [PAYMENT DEBUG] Added department URL for: ${department.code}`);
+              } else {
+                console.log(`🐛 [PAYMENT DEBUG] Department not found for ID: ${departmentId}`);
               }
             }
             return urls;
           }, {} as Record<string, string>);
+          
+          console.log("🐛 [PAYMENT DEBUG] Final departmentReceiptUrls:", departmentReceiptUrls);
         } catch (error) {
           console.error("Error generating department receipt URLs:", error);
           // Continue without department URLs if there's an error
         }
+      } else {
+        console.log("🐛 [PAYMENT DEBUG] No orderWithDetails found!");
       }
       
       res.status(201).json({
