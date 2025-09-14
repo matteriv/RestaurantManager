@@ -305,18 +305,18 @@ export class AutoPrintService {
       });
 
       // Extract URLs and check if we can batch print
+      // All jobs can be batched if they have a printer name and haven't used fallback yet
       const canBatchPrint = jobs.every(job => 
         job.printerName && 
-        job.printerName !== 'browser_default' && 
         !job.usedFallback
       );
 
-      if (canBatchPrint && printerName !== 'browser_default') {
-        // Use batch print API for network printing
+      if (canBatchPrint) {
+        // Use batch print API for all printer types (network, CUPS, and browser)
         const urls = jobs.map(job => job.url);
         
         try {
-          console.log(`🌐 Sending batch print request: ${urls.length} URLs to ${printerName}`);
+          console.log(`🖨️ Sending batch print request: ${urls.length} URLs to ${printerName} (${printerName === 'browser_default' ? 'browser printing' : 'network/CUPS printing'})`);
           
           const response = await apiRequest('POST', '/api/print/batch', {
             urls: urls,
