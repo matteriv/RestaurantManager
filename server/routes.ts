@@ -17,6 +17,17 @@ interface WebSocketClient extends WebSocket {
   clientType?: 'pos' | 'kds' | 'customer' | 'admin';
 }
 
+// Global broadcast function wrapper - safe to call before WebSocket is initialized
+function broadcastMessage(type: string, data: any, targetClientType?: string) {
+  // Access the global broadcast function if it exists
+  if ((global as any).broadcastMessage && typeof (global as any).broadcastMessage === 'function') {
+    (global as any).broadcastMessage(type, data, targetClientType);
+  } else {
+    // Log warning if broadcast is not yet initialized
+    console.warn('WebSocket broadcast not yet initialized for message:', type);
+  }
+}
+
 // Helper function to test printer connectivity
 async function testPrinterConnection(ipAddress: string, port: number): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -1751,8 +1762,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }, 60000); // Increased to 60 seconds for stability
 
-  // Broadcast function
-  function broadcastMessage(type: string, data: any, targetClientType?: string) {
+  // Internal broadcast function
+  function internalBroadcastMessage(type: string, data: any, targetClientType?: string) {
     const message = JSON.stringify({ type, data });
     
     clients.forEach((ws) => {
@@ -1764,8 +1775,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 
-  // Make broadcastMessage available globally for this module
-  (global as any).broadcastMessage = broadcastMessage;
+  // Make the internal broadcast function available globally
+  (global as any).broadcastMessage = internalBroadcastMessage;
 
   return httpServer;
 }
