@@ -7,11 +7,11 @@ import { apiRequest } from '@/lib/queryClient';
 
 export interface PrintJob {
   id: string;
-  type: 'customer_receipt' | 'department_ticket';
-  url: string;
+  type: 'batch_print'; // Changed to support batch printing
+  urls: string[]; // Array of URLs to print in batch
+  urlTypes: Array<'customer_receipt' | 'department_ticket'>; // Types for each URL
+  departmentCodes: Array<string | null>; // Department codes for each URL (null for customer receipt)
   printerName?: string;
-  departmentCode?: string;
-  priority: number; // 1 = highest (customer), 2 = department tickets
   status: 'pending' | 'printing' | 'success' | 'failed' | 'retry';
   attempts: number;
   maxAttempts: number;
@@ -22,6 +22,10 @@ export interface PrintJob {
   fallbackAttempts?: number;
   createdAt: Date;
   lastAttemptAt?: Date;
+  // Additional batch-specific properties
+  totalUrls: number;
+  successfulUrls?: number;
+  failedUrls?: number;
 }
 
 export interface AutoPrintResult {
@@ -51,6 +55,14 @@ export interface PrinterConfig {
   isActive: boolean;
 }
 
+export interface DefaultPrinterResponse {
+  defaultPrinter: string | null;
+  available: boolean;
+  message: string;
+  timestamp: string;
+  cached: boolean;
+}
+
 export class AutoPrintService {
   private static instance: AutoPrintService;
   private printQueue: PrintJob[] = [];
@@ -78,7 +90,7 @@ export class AutoPrintService {
   }
 
   /**
-   * Main entry point - Process automatic printing after payment
+   * Main entry point - Process automatic printing after payment using batch printing
    */
   public async processPaymentPrint(
     terminalId: string,
@@ -92,27 +104,37 @@ export class AutoPrintService {
     }
   ): Promise<AutoPrintResult> {
     try {
-      console.log('🖨️ Starting auto-print process for terminal:', terminalId);
+      console.log('🖨️ Starting batch auto-print process for terminal:', terminalId);
       
-      // Get printer configurations for this terminal
-      const printerConfigs = await this.getPrinterConfigurations(terminalId);
+      // Get system default printer
+      const defaultPrinter = await this.getSystemDefaultPrinter();
       
-      // Generate print jobs
-      const printJobs = await this.generatePrintJobs(
-        paymentResponse,
-        printerConfigs,
-        orderData
-      );
+      // Collect all URLs for batch printing
+      const { urls, urlTypes, departmentCodes } = this.collectPrintUrls(paymentResponse);
       
-      // Add jobs to queue and process
-      this.addJobsToQueue(printJobs);
-      const result = await this.processQueue();
+      if (urls.length === 0) {
+        console.log('⚠️ No URLs to print');
+        return {
+          success: true,
+          printJobs: [],
+          errors: [],
+          totalJobs: 0,
+          successfulJobs: 0,
+          failedJobs: 0
+        };
+      }
+      
+      // Create single batch print job
+      const batchJob = this.createBatchPrintJob(urls, urlTypes, departmentCodes, defaultPrinter);
+      
+      // Process the batch job
+      const result = await this.processBatchPrintJob(batchJob);
       
       this.emit('auto-print-completed', result);
       
       return result;
     } catch (error) {
-      console.error('❌ Auto-print process failed:', error);
+      console.error('❌ Batch auto-print process failed:', error);
       const errorResult: AutoPrintResult = {
         success: false,
         printJobs: [],
@@ -128,17 +150,42 @@ export class AutoPrintService {
   }
 
   /**
-   * Generate print jobs from payment response
+   * Get system default printer from backend API
    */
-  private async generatePrintJobs(
-    paymentResponse: PaymentResponse,
-    printerConfigs: PrinterConfig[],
-    orderData?: any
-  ): Promise<PrintJob[]> {
-    const jobs: PrintJob[] = [];
+  private async getSystemDefaultPrinter(): Promise<string | null> {
+    try {
+      console.log('🖨️ Fetching system default printer...');
+      
+      const response = await apiRequest('GET', '/api/printers/default');
+      const result: DefaultPrinterResponse = await response.json();
+      
+      if (result.defaultPrinter && result.available) {
+        console.log(`✅ System default printer found: ${result.defaultPrinter}`);
+        return result.defaultPrinter;
+      } else {
+        console.log('⚠️ No system default printer available:', result.message);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Failed to get system default printer:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Collect all URLs for batch printing from payment response
+   */
+  private collectPrintUrls(paymentResponse: PaymentResponse): {
+    urls: string[];
+    urlTypes: Array<'customer_receipt' | 'department_ticket'>;
+    departmentCodes: Array<string | null>;
+  } {
+    const urls: string[] = [];
+    const urlTypes: Array<'customer_receipt' | 'department_ticket'> = [];
+    const departmentCodes: Array<string | null> = [];
     
     // 🔍 DEBUG: Log the entire payment response
-    console.log('🔍 DEBUG: Payment response received for auto-print:', {
+    console.log('🔍 DEBUG: Payment response received for batch auto-print:', {
       receiptUrls: paymentResponse.receiptUrls,
       departmentReceiptUrls: paymentResponse.departmentReceiptUrls,
       hasReceiptUrls: !!paymentResponse.receiptUrls,
@@ -147,253 +194,317 @@ export class AutoPrintService {
       departmentUrlsCount: paymentResponse.departmentReceiptUrls ? Object.keys(paymentResponse.departmentReceiptUrls).length : 0
     });
     
-    // Get default customer receipt printer
-    const defaultPrinter = printerConfigs.find(p => p.isDefault && p.isActive);
-    
-    // Customer receipt job (highest priority)
-    if (paymentResponse.receiptUrls?.printable && defaultPrinter) {
-      jobs.push({
-        id: `customer-${Date.now()}`,
-        type: 'customer_receipt',
-        url: paymentResponse.receiptUrls.printable,
-        printerName: defaultPrinter.printerName,
-        priority: 1,
-        status: 'pending',
-        attempts: 0,
-        maxAttempts: this.DEFAULT_MAX_ATTEMPTS,
-        usedFallback: false,
-        networkAttempts: 0,
-        fallbackAttempts: 0,
-        createdAt: new Date()
-      });
+    // Add customer receipt URL (highest priority - first in batch)
+    if (paymentResponse.receiptUrls?.printable) {
+      urls.push(paymentResponse.receiptUrls.printable);
+      urlTypes.push('customer_receipt');
+      departmentCodes.push(null);
     }
-
-    // Department ticket jobs
+    
+    // Add department ticket URLs
     if (paymentResponse.departmentReceiptUrls) {
-      Object.entries(paymentResponse.departmentReceiptUrls).forEach(([departmentCode, url], index) => {
-        // For now, use default printer for department tickets
-        // TODO: In future, implement department-specific printer configuration
-        if (defaultPrinter) {
-          jobs.push({
-            id: `department-${departmentCode}-${Date.now()}`,
-            type: 'department_ticket',
-            url: url,
-            printerName: defaultPrinter.printerName,
-            departmentCode: departmentCode,
-            priority: 2,
-            status: 'pending',
-            attempts: 0,
-            maxAttempts: this.DEFAULT_MAX_ATTEMPTS,
-            usedFallback: false,
-            networkAttempts: 0,
-            fallbackAttempts: 0,
-            createdAt: new Date()
-          });
-        }
+      Object.entries(paymentResponse.departmentReceiptUrls).forEach(([departmentCode, url]) => {
+        urls.push(url);
+        urlTypes.push('department_ticket');
+        departmentCodes.push(departmentCode);
       });
     }
-
-    // If no printer configured, create a job for manual printing
-    if (jobs.length === 0 && paymentResponse.receiptUrls?.printable) {
-      jobs.push({
-        id: `manual-${Date.now()}`,
-        type: 'customer_receipt',
-        url: paymentResponse.receiptUrls.printable,
-        printerName: 'browser_default',
-        priority: 1,
-        status: 'pending',
-        attempts: 0,
-        maxAttempts: 1,
-        usedFallback: true,
-        networkAttempts: 0,
-        fallbackAttempts: 0,
-        createdAt: new Date()
-      });
-    }
-
-    // Enhanced logging for multi-department tickets
-    const customerJobs = jobs.filter(job => job.type === 'customer_receipt');
-    const departmentJobs = jobs.filter(job => job.type === 'department_ticket');
     
-    console.log(`📋 Generated ${jobs.length} print jobs:`);
-    console.log(`  → ${customerJobs.length} customer receipt(s)`);
-    console.log(`  → ${departmentJobs.length} department ticket(s)${departmentJobs.length > 0 ? ' for: ' + departmentJobs.map(job => job.departmentCode).join(', ') : ''}`);
+    console.log(`📋 Collected ${urls.length} URLs for batch printing:`);
+    console.log(`  → ${urlTypes.filter(type => type === 'customer_receipt').length} customer receipt(s)`);
+    const deptTickets = departmentCodes.filter(code => code !== null);
+    console.log(`  → ${deptTickets.length} department ticket(s)${deptTickets.length > 0 ? ' for: ' + deptTickets.join(', ') : ''}`);
     
-    return jobs;
+    return { urls, urlTypes, departmentCodes };
   }
 
   /**
-   * Add jobs to print queue
+   * Create a single batch print job
    */
-  private addJobsToQueue(jobs: PrintJob[]): void {
-    this.printQueue.push(...jobs);
-    // Sort by priority (1 = highest)
-    this.printQueue.sort((a, b) => a.priority - b.priority);
+  private createBatchPrintJob(
+    urls: string[],
+    urlTypes: Array<'customer_receipt' | 'department_ticket'>,
+    departmentCodes: Array<string | null>,
+    defaultPrinter: string | null
+  ): PrintJob {
+    const batchJob: PrintJob = {
+      id: `batch-${Date.now()}`,
+      type: 'batch_print',
+      urls: urls,
+      urlTypes: urlTypes,
+      departmentCodes: departmentCodes,
+      printerName: defaultPrinter || 'browser_default',
+      status: 'pending',
+      attempts: 0,
+      maxAttempts: this.DEFAULT_MAX_ATTEMPTS,
+      usedFallback: !defaultPrinter, // Use fallback if no default printer
+      networkAttempts: 0,
+      fallbackAttempts: 0,
+      createdAt: new Date(),
+      totalUrls: urls.length,
+      successfulUrls: 0,
+      failedUrls: 0
+    };
+    
+    console.log(`📦 Created batch print job: ${batchJob.id}`);
+    console.log(`  → Printer: ${batchJob.printerName}`);
+    console.log(`  → URLs: ${batchJob.totalUrls}`);
+    console.log(`  → Will use fallback: ${batchJob.usedFallback ? 'Yes' : 'No'}`);
+    
+    return batchJob;
   }
 
   /**
-   * Process the print queue with smart batch printing
+   * Process a single batch print job
    */
-  private async processQueue(): Promise<AutoPrintResult> {
-    if (this.isProcessing) {
-      console.log('⏳ Print queue already processing');
-      return this.getQueueResult();
-    }
-
-    this.isProcessing = true;
-    console.log(`🔄 Processing ${this.printQueue.length} print jobs`);
-
+  private async processBatchPrintJob(batchJob: PrintJob): Promise<AutoPrintResult> {
+    console.log(`🔄 Processing batch print job: ${batchJob.id}`);
+    
+    batchJob.status = 'printing';
+    batchJob.attempts++;
+    batchJob.lastAttemptAt = new Date();
+    
+    this.emit('print-job-started', batchJob);
+    
     try {
-      // Group jobs by printer for batch printing
-      const jobsByPrinter = this.groupJobsByPrinter();
-      
-      for (const [printerName, jobs] of Array.from(jobsByPrinter.entries())) {
-        const pendingJobs = jobs.filter(job => job.status === 'pending' || job.status === 'retry');
-        
-        if (pendingJobs.length === 0) continue;
-        
-        if (pendingJobs.length === 1) {
-          // Single job - use normal processing
-          await this.processPrintJob(pendingJobs[0]);
-        } else {
-          // Multiple jobs for same printer - use batch printing
-          console.log(`📄 Batch printing ${pendingJobs.length} jobs to ${printerName}`);
-          await this.processBatchPrintJobs(printerName, pendingJobs);
-        }
-        
-        // Small delay between printers to avoid overwhelming system
-        await this.delay(300);
-      }
-
-      const result = this.getQueueResult();
-      
-      // Clear completed jobs from queue
-      this.printQueue = this.printQueue.filter(job => 
-        job.status === 'pending' || job.status === 'retry'
-      );
-      
-      return result;
-    } finally {
-      this.isProcessing = false;
-    }
-  }
-
-  /**
-   * Group print jobs by printer name for batch processing
-   */
-  private groupJobsByPrinter(): Map<string, PrintJob[]> {
-    const jobsByPrinter = new Map<string, PrintJob[]>();
-    
-    // Sort jobs by priority first
-    const sortedJobs = [...this.printQueue].sort((a, b) => a.priority - b.priority);
-    
-    for (const job of sortedJobs) {
-      const printerName = job.printerName || 'browser_default';
-      
-      if (!jobsByPrinter.has(printerName)) {
-        jobsByPrinter.set(printerName, []);
-      }
-      jobsByPrinter.get(printerName)!.push(job);
-    }
-    
-    return jobsByPrinter;
-  }
-
-  /**
-   * Process multiple jobs as a single batch print
-   */
-  private async processBatchPrintJobs(printerName: string, jobs: PrintJob[]): Promise<void> {
-    try {
-      console.log(`🖨️ Starting batch print: ${jobs.length} documents to ${printerName}`);
-      
-      // Mark all jobs as printing
-      jobs.forEach(job => {
-        job.status = 'printing';
-        job.attempts++;
-        job.lastAttemptAt = new Date();
-        this.emit('print-job-started', job);
-      });
-
-      // Extract URLs and check if we can batch print
-      // All jobs can be batched if they have a printer name and haven't used fallback yet
-      const canBatchPrint = jobs.every(job => 
-        job.printerName && 
-        !job.usedFallback
-      );
-
-      if (canBatchPrint) {
-        // Use batch print API for all printer types (network, CUPS, and browser)
-        const urls = jobs.map(job => job.url);
-        
-        try {
-          console.log(`🖨️ Sending batch print request: ${urls.length} URLs to ${printerName} (${printerName === 'browser_default' ? 'browser printing' : 'network/CUPS printing'})`);
-          
-          const response = await apiRequest('POST', '/api/print/batch', {
-            urls: urls,
-            printerName: printerName,
-            copies: 1,
-            silent: true
-          });
-          
-          const result = await response.json();
-          
-          if (result.success) {
-            // Mark all jobs as successful
-            jobs.forEach(job => {
-              job.status = 'success';
-              console.log(`✅ Batch print job ${job.id} completed successfully`);
-              this.emit('print-job-success', job);
-            });
-            
-            console.log(`✅ Batch print completed: ${jobs.length} documents printed to ${printerName}`);
-            return;
-          } else {
-            throw new Error(result.error || 'Batch print failed on server');
-          }
-          
-        } catch (batchError) {
-          console.warn(`❌ Batch print failed, falling back to individual jobs:`, batchError);
-          
-          // Fall back to individual job processing
-          for (const job of jobs) {
-            job.status = 'pending'; // Reset status
-            job.attempts--; // Reset attempt count
-            await this.processPrintJob(job);
-            await this.delay(300); // Small delay between individual jobs
-          }
-          return;
-        }
+      if (batchJob.printerName === 'browser_default' || batchJob.usedFallback) {
+        // Use browser printing fallback
+        await this.processBatchWithBrowser(batchJob);
       } else {
-        // Use browser printing for fallback jobs
-        console.log(`🌐 Using browser printing for ${jobs.length} jobs`);
-        
-        for (const job of jobs) {
-          try {
-            job.usedFallback = true;
-            job.fallbackAttempts = (job.fallbackAttempts || 0) + 1;
-            
-            await this.printWithBrowser(job.url, job);
-            
-            job.status = 'success';
-            console.log(`✅ Browser print job ${job.id} completed successfully`);
-            this.emit('print-job-success', job);
-            
-            // Small delay between browser prints to avoid conflicts
-            await this.delay(800);
-            
-          } catch (error) {
-            await this.handlePrintJobError(job, error);
-          }
-        }
+        // Try network printer first
+        batchJob.networkAttempts = (batchJob.networkAttempts || 0) + 1;
+        console.log(`🖨️ Attempting batch network print to ${batchJob.printerName} (attempt ${batchJob.networkAttempts}/${this.MAX_NETWORK_ATTEMPTS})`);
+        await this.processBatchWithSystemPrinter(batchJob);
       }
+      
+      batchJob.status = 'success';
+      batchJob.successfulUrls = batchJob.totalUrls;
+      batchJob.failedUrls = 0;
+      
+      const printMethod = batchJob.usedFallback ? 'browser fallback' : `network printer ${batchJob.printerName}`;
+      console.log(`✅ Batch print job ${batchJob.id} completed successfully using ${printMethod}`);
+      
+      this.emit('print-job-success', batchJob);
+      
+      return {
+        success: true,
+        printJobs: [batchJob],
+        errors: [],
+        totalJobs: 1,
+        successfulJobs: 1,
+        failedJobs: 0
+      };
       
     } catch (error) {
-      console.error(`❌ Batch print processing failed:`, error);
+      return await this.handleBatchPrintError(batchJob, error);
+    }
+  }
+
+  /**
+   * Process batch printing with network/system printer
+   */
+  private async processBatchWithSystemPrinter(batchJob: PrintJob): Promise<void> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.NETWORK_TIMEOUT);
+    
+    try {
+      console.log(`🖨️ Sending batch print request to ${batchJob.printerName}`);
+      console.log(`  → URLs: ${batchJob.totalUrls}`);
+      console.log(`  → Types: ${batchJob.urlTypes.join(', ')}`);
       
-      // Handle error for all jobs
-      for (const job of jobs) {
-        await this.handlePrintJobError(job, error);
+      // Call backend batch print API with timeout
+      const response = await apiRequest('POST', '/api/print/batch', {
+        urls: batchJob.urls,
+        printerName: batchJob.printerName,
+        copies: 1,
+        silent: true
+      }, controller.signal);
+
+      const result = await response.json();
+      clearTimeout(timeoutId);
+      
+      if (!result.success) {
+        // Categorize printer-specific errors
+        if (result.error?.includes('offline') || result.error?.includes('unreachable')) {
+          batchJob.errorType = 'printer';
+        } else if (result.error?.includes('timeout')) {
+          batchJob.errorType = 'timeout';
+        } else {
+          batchJob.errorType = 'printer';
+        }
+        
+        throw new Error(result.error || 'Batch print failed on server');
       }
+      
+      console.log(`✅ Network batch print completed for job ${batchJob.id}:`, result);
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      // Check if this was an abort (timeout)
+      if (error.name === 'AbortError' || error.message?.includes('abort') || error.message?.includes('signal')) {
+        batchJob.errorType = 'timeout';
+        throw new Error(`Network timeout after ${this.NETWORK_TIMEOUT}ms`);
+      }
+      
+      // If no error type set, determine from error message
+      if (!batchJob.errorType) {
+        const errorMsg = error.message?.toLowerCase() || '';
+        if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+          batchJob.errorType = 'network';
+        } else if (errorMsg.includes('timeout')) {
+          batchJob.errorType = 'timeout';
+        } else {
+          batchJob.errorType = 'printer';
+        }
+      }
+      
+      console.error(`❌ Network batch print failed for job ${batchJob.id}:`, error);
+      throw error; // Re-throw to be handled by processBatchPrintJob
+    }
+  }
+
+  /**
+   * Process batch printing with browser fallback
+   */
+  private async processBatchWithBrowser(batchJob: PrintJob): Promise<void> {
+    console.log(`🌐 Processing batch browser print for ${batchJob.totalUrls} documents`);
+    
+    batchJob.fallbackAttempts = (batchJob.fallbackAttempts || 0) + 1;
+    
+    // Print each URL individually with browser
+    for (let i = 0; i < batchJob.urls.length; i++) {
+      const url = batchJob.urls[i];
+      const urlType = batchJob.urlTypes[i];
+      const departmentCode = batchJob.departmentCodes[i];
+      
+      try {
+        console.log(`🌐 Browser printing document ${i + 1}/${batchJob.totalUrls}: ${urlType}${departmentCode ? ` (${departmentCode})` : ''}`);
+        
+        // Create a temporary print job for individual URL
+        const tempJob: PrintJob = {
+          ...batchJob,
+          id: `${batchJob.id}-${i}`,
+          urls: [url],
+          urlTypes: [urlType],
+          departmentCodes: [departmentCode],
+          totalUrls: 1
+        };
+        
+        await this.printWithBrowser(url, tempJob);
+        
+        // Small delay between browser prints to avoid conflicts
+        if (i < batchJob.urls.length - 1) {
+          await this.delay(1200); // Increased delay for batch browser printing
+        }
+        
+      } catch (error) {
+        console.error(`❌ Browser print failed for document ${i + 1}: ${urlType}`, error);
+        throw new Error(`Browser batch print failed at document ${i + 1}: ${error.message}`);
+      }
+    }
+    
+    console.log(`✅ Browser batch print completed for all ${batchJob.totalUrls} documents`);
+  }
+
+  /**
+   * Handle batch print job errors with intelligent fallback logic
+   */
+  private async handleBatchPrintError(batchJob: PrintJob, error: any): Promise<AutoPrintResult> {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown batch print error';
+    batchJob.error = errorMessage;
+    
+    console.error(`❌ Batch print job ${batchJob.id} failed (attempt ${batchJob.attempts}):`, errorMessage);
+    
+    // Determine if we should try fallback or retry
+    const shouldUseFallback = this.shouldUseFallback(batchJob, error);
+    
+    if (shouldUseFallback && !batchJob.usedFallback) {
+      // Try browser fallback
+      console.log(`🔄 Attempting browser fallback for batch job ${batchJob.id}`);
+      
+      try {
+        batchJob.usedFallback = true;
+        batchJob.status = 'printing';
+        
+        this.emit('print-fallback-started', { job: batchJob, reason: batchJob.errorType || 'network_error' });
+        
+        await this.processBatchWithBrowser(batchJob);
+        
+        batchJob.status = 'success';
+        batchJob.successfulUrls = batchJob.totalUrls;
+        batchJob.failedUrls = 0;
+        
+        console.log(`✅ Batch print job ${batchJob.id} completed successfully using browser fallback`);
+        this.emit('print-job-success', batchJob);
+        
+        return {
+          success: true,
+          printJobs: [batchJob],
+          errors: [],
+          totalJobs: 1,
+          successfulJobs: 1,
+          failedJobs: 0
+        };
+        
+      } catch (fallbackError) {
+        console.error(`❌ Browser fallback also failed for batch job ${batchJob.id}:`, fallbackError);
+        batchJob.error = `Network failed: ${errorMessage}; Browser fallback failed: ${fallbackError.message}`;
+        batchJob.errorType = 'browser';
+      }
+    }
+    
+    // Determine if we should retry (without fallback) or fail permanently
+    if (batchJob.attempts < batchJob.maxAttempts && this.shouldRetryJob(batchJob)) {
+      batchJob.status = 'retry';
+      const retryDelay = this.RETRY_DELAYS[batchJob.attempts - 1] || 5000;
+      console.log(`🔄 Will retry batch job ${batchJob.id} in ${retryDelay}ms`);
+      
+      // Schedule retry
+      setTimeout(async () => {
+        if (batchJob.status === 'retry') {
+          const retryResult = await this.processBatchPrintJob(batchJob);
+          // Note: This is a simplified retry, in production you might want more sophisticated retry handling
+        }
+      }, retryDelay);
+      
+      this.emit('print-job-retry', batchJob);
+      
+      return {
+        success: false,
+        printJobs: [batchJob],
+        errors: [errorMessage],
+        totalJobs: 1,
+        successfulJobs: 0,
+        failedJobs: 0 // Still retrying
+      };
+    } else {
+      batchJob.status = 'failed';
+      batchJob.successfulUrls = 0;
+      batchJob.failedUrls = batchJob.totalUrls;
+      
+      console.error(`💥 Batch print job ${batchJob.id} failed permanently after ${batchJob.attempts} attempts`);
+      
+      // Emit detailed failure event
+      this.emit('print-job-failed', {
+        id: batchJob.id,
+        type: 'batch_print',
+        totalUrls: batchJob.totalUrls,
+        networkAttempts: batchJob.networkAttempts || 0,
+        fallbackAttempts: batchJob.fallbackAttempts || 0,
+        triedFallback: batchJob.usedFallback || false,
+        finalError: errorMessage,
+        errorType: batchJob.errorType
+      });
+      
+      return {
+        success: false,
+        printJobs: [batchJob],
+        errors: [errorMessage],
+        totalJobs: 1,
+        successfulJobs: 0,
+        failedJobs: 1
+      };
     }
   }
 

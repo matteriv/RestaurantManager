@@ -11,6 +11,8 @@ import { generateCustomerReceiptFromSettings, type PaymentInfo } from "./receipt
 import { generateDepartmentTicket, getDepartmentsWithItems, generateNoDepartmentTicket, NO_DEPARTMENT_CODE, NO_DEPARTMENT_NAME } from "./departmentReceiptGenerator";
 import { printDocument, getPrintJobStatus, cancelPrintJob, getPrinterQueue, type PrintOptions, printerNameSchema, jobIdSchema, printOptionsSchema, contentSchema, combinePrintUrls } from "./cupsInterface";
 import { Socket } from "net";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
 interface WebSocketClient extends WebSocket {
   isAlive?: boolean;
@@ -54,6 +56,151 @@ async function testPrinterConnection(ipAddress: string, port: number): Promise<n
     
     socket.connect(port, ipAddress);
   });
+}
+
+// Create promisified execFile for secure command execution
+const execFileAsync = promisify(execFile);
+
+// Cache for default printer information
+interface DefaultPrinterCache {
+  defaultPrinter: string | null;
+  available: boolean;
+  message?: string;
+  timestamp: number;
+}
+
+let defaultPrinterCache: DefaultPrinterCache | null = null;
+const DEFAULT_PRINTER_CACHE_TTL = 30000; // 30 seconds
+
+/**
+ * Get the system's default printer using lpstat -d command - SECURE IMPLEMENTATION
+ */
+async function getSystemDefaultPrinter(): Promise<{ defaultPrinter: string | null; available: boolean; message?: string }> {
+  // Check cache first
+  if (defaultPrinterCache && (Date.now() - defaultPrinterCache.timestamp) < DEFAULT_PRINTER_CACHE_TTL) {
+    console.log('📄 Using cached default printer info:', defaultPrinterCache.defaultPrinter || 'none');
+    return {
+      defaultPrinter: defaultPrinterCache.defaultPrinter,
+      available: defaultPrinterCache.available,
+      message: defaultPrinterCache.message
+    };
+  }
+
+  try {
+    console.log('📄 Fetching system default printer using lpstat -d');
+    
+    // Security: Use execFile with arguments array instead of shell command
+    const { stdout, stderr } = await execFileAsync('lpstat', ['-d'], { 
+      timeout: 5000,
+      encoding: 'utf8'
+    });
+
+    // Parse the output to extract default printer name
+    // Expected format: "system default destination: PrinterName" or "no system default destination"
+    const output = stdout.trim();
+    console.log('📄 lpstat -d output:', output);
+
+    let defaultPrinter: string | null = null;
+    let message: string | undefined;
+
+    if (output.includes('no system default destination') || output.includes('no default destination')) {
+      // No default printer configured
+      defaultPrinter = null;
+      message = 'No default printer configured in the system';
+      console.log('📄 No default printer configured');
+    } else if (output.includes('system default destination:')) {
+      // Extract printer name from "system default destination: PrinterName"
+      const match = output.match(/system default destination:\s*(.+)$/i);
+      if (match && match[1]) {
+        defaultPrinter = match[1].trim();
+        console.log('📄 Found default printer:', defaultPrinter);
+        
+        // Security: Validate printer name format
+        const printerNameValidation = printerNameSchema.safeParse(defaultPrinter);
+        if (!printerNameValidation.success) {
+          console.warn('📄 Invalid default printer name format:', defaultPrinter);
+          defaultPrinter = null;
+          message = 'Default printer name contains invalid characters';
+        }
+      } else {
+        defaultPrinter = null;
+        message = 'Could not parse default printer name from system output';
+        console.warn('📄 Could not parse printer name from output:', output);
+      }
+    } else if (output.length > 0) {
+      // Unexpected output format, but try to extract printer name
+      const lines = output.split('\n').filter(line => line.trim().length > 0);
+      if (lines.length > 0) {
+        const potentialPrinter = lines[0].trim();
+        // Security: Validate printer name format
+        const printerNameValidation = printerNameSchema.safeParse(potentialPrinter);
+        if (printerNameValidation.success) {
+          defaultPrinter = potentialPrinter;
+          console.log('📄 Extracted potential default printer:', defaultPrinter);
+        } else {
+          defaultPrinter = null;
+          message = 'Unexpected output format from lpstat command';
+          console.warn('📄 Unexpected lpstat output format:', output);
+        }
+      }
+    } else {
+      defaultPrinter = null;
+      message = 'Empty output from lpstat command';
+      console.warn('📄 Empty output from lpstat -d');
+    }
+
+    // Handle stderr output
+    if (stderr && stderr.trim().length > 0) {
+      console.warn('📄 lpstat stderr:', stderr);
+      if (!message) {
+        message = 'Warning from system printer service';
+      }
+    }
+
+    const result = {
+      defaultPrinter,
+      available: true,
+      message
+    };
+
+    // Cache the result
+    defaultPrinterCache = {
+      ...result,
+      timestamp: Date.now()
+    };
+
+    console.log('📄 Default printer result cached:', result);
+    return result;
+
+  } catch (error) {
+    console.error('📄 Error getting default printer:', error);
+    
+    let message = 'Failed to get default printer information';
+    
+    if (error instanceof Error) {
+      if (error.message.includes('ENOENT') || error.message.includes('command not found')) {
+        message = 'Printer system (CUPS) not available or lpstat command not found';
+      } else if (error.message.includes('timeout')) {
+        message = 'Timeout while querying printer system';
+      } else {
+        message = `Printer system error: ${error.message}`;
+      }
+    }
+
+    const result = {
+      defaultPrinter: null,
+      available: false,
+      message
+    };
+
+    // Cache the error result for a shorter time (5 seconds)
+    defaultPrinterCache = {
+      ...result,
+      timestamp: Date.now() - (DEFAULT_PRINTER_CACHE_TTL - 5000)
+    };
+
+    return result;
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1271,6 +1418,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting printer terminal:", error);
       res.status(500).json({ message: "Failed to delete printer terminal" });
+    }
+  });
+
+  // Default Printer Information route - SECURE IMPLEMENTATION
+  app.get('/api/printers/default', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('📄 GET /api/printers/default - Fetching system default printer');
+      
+      // Get current user for audit logging
+      const userId = req.user.claims.sub;
+      
+      // Get system default printer with caching
+      const result = await getSystemDefaultPrinter();
+      
+      // Log the successful request (non-sensitive information only)
+      console.log('📄 Default printer request successful:', {
+        userId,
+        hasDefaultPrinter: !!result.defaultPrinter,
+        available: result.available,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Return the result in the specified format
+      res.json({
+        defaultPrinter: result.defaultPrinter,
+        available: result.available,
+        message: result.message,
+        timestamp: new Date().toISOString(),
+        cached: defaultPrinterCache ? (Date.now() - defaultPrinterCache.timestamp) < DEFAULT_PRINTER_CACHE_TTL : false
+      });
+      
+    } catch (error) {
+      console.error('📄 Error in GET /api/printers/default:', error);
+      
+      // Log the failed request for audit purposes
+      try {
+        const userId = req.user?.claims?.sub;
+        if (userId) {
+          await storage.createAuditLog({
+            userId,
+            action: 'get_default_printer_failed',
+            entityType: 'printer',
+            entityId: 'system_default',
+            newValues: { 
+              error: error instanceof Error ? error.message : 'Unknown error',
+              timestamp: new Date().toISOString()
+            },
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent'),
+          });
+        }
+      } catch (auditError) {
+        console.error('📄 Failed to create audit log for default printer error:', auditError);
+      }
+      
+      // Return error response following the same format
+      res.status(500).json({
+        defaultPrinter: null,
+        available: false,
+        message: 'Failed to retrieve system default printer information',
+        timestamp: new Date().toISOString(),
+        cached: false,
+        error: 'Internal server error'
+      });
     }
   });
 
