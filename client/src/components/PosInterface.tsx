@@ -1201,7 +1201,7 @@ export function PosInterface() {
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {autoPrint.state.printJobs.map((job, index) => (
                       <div key={job.id || index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded text-sm" data-testid={`print-job-${job.id}`}>
-                        <span>{job.type === 'customer_receipt' ? 'Scontrino Cliente' : `Cucina ${job.departmentCode}`}</span>
+                        <span>{job.type === 'receipt' ? 'Scontrino Cliente' : `Cucina ${job.departmentCode}`}</span>
                         <Badge variant={
                           job.status === 'success' ? 'default' :
                           job.status === 'failed' ? 'destructive' :

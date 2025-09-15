@@ -438,7 +438,7 @@ export const printLogs = pgTable("print_logs", {
   departmentId: varchar("department_id").references(() => departments.id), // FK to departments for consistency
   terminalId: varchar("terminal_id"), // Legacy field - which POS terminal initiated the print
   printType: printTypeEnum("print_type").notNull(),
-  targetPrinter: varchar("target_printer").notNull(), // Printer name or identifier
+  targetPrinter: varchar("target_printer"), // Printer name or identifier
   status: printStatusEnum("status").notNull().default('pending'),
   content: text("content"), // Print content for debugging
   errorMessage: text("error_message"), // Error details if failed

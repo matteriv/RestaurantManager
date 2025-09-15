@@ -144,7 +144,7 @@ export class AutoPrintService {
     if (paymentResponse.receiptUrls?.printable && defaultPrinter) {
       jobs.push({
         id: `customer-${Date.now()}`,
-        type: 'customer_receipt',
+        type: 'receipt',
         url: paymentResponse.receiptUrls.printable,
         printerName: defaultPrinter.printerName,
         priority: 1,
@@ -187,7 +187,7 @@ export class AutoPrintService {
     if (jobs.length === 0 && paymentResponse.receiptUrls?.printable) {
       jobs.push({
         id: `manual-${Date.now()}`,
-        type: 'customer_receipt',
+        type: 'receipt',
         url: paymentResponse.receiptUrls.printable,
         printerName: 'browser_default',
         priority: 1,

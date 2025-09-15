@@ -172,7 +172,7 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
           updatePrintJobInState(job);
           
           if (opts.showToastNotifications) {
-            const jobType = job.type === 'customer_receipt' 
+            const jobType = job.type === 'receipt' 
               ? 'scontrino cliente'
               : `ticket ${job.departmentCode}`;
               
@@ -213,7 +213,7 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
           updatePrintJobInState(jobData);
           
           if (opts.showToastNotifications) {
-            const jobType = jobData.type === 'customer_receipt' 
+            const jobType = jobData.type === 'receipt' 
               ? 'scontrino cliente'
               : `ticket ${jobData.departmentCode}`;
               
@@ -275,7 +275,7 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
               : data.reason === 'timeout' ? 'timeout connessione'
               : 'errore di sistema';
               
-            const jobType = data.job.type === 'customer_receipt' 
+            const jobType = data.job.type === 'receipt' 
               ? 'scontrino cliente' 
               : `ticket ${data.job.departmentCode}`;
               
@@ -293,7 +293,7 @@ export function useAutoPrint(options: UseAutoPrintOptions = {}): UseAutoPrintRet
           console.log('🖨️ Browser print started:', data.job.id);
           
           if (opts.showToastNotifications && !notificationHistoryRef.current.includes(`browser-${data.job.id}`)) {
-            const jobType = data.job.type === 'customer_receipt' 
+            const jobType = data.job.type === 'receipt' 
               ? 'scontrino cliente' 
               : `ticket ${data.job.departmentCode}`;
               
