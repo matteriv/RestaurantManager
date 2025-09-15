@@ -1016,11 +1016,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.createPrintLog({
             orderId: order.id,
             printType: 'customer_receipt',
-            departmentCode: null,
+            departmentId: null,
             targetPrinter: null,
             content: customerReceiptHTML,
             status: 'pending',
-            printedAt: new Date(),
           });
           
           console.log('✅ Customer receipt added to print spool');
@@ -1056,11 +1055,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               await storage.createPrintLog({
                 orderId: order.id,
                 printType: 'department_ticket',
-                departmentCode: departmentCode,
+                departmentId: deptId === NO_DEPARTMENT_CODE ? null : deptId,
                 targetPrinter: null,
                 content: ticketHTML,
                 status: 'pending',
-                printedAt: new Date(),
               });
               
               console.log(`✅ Department ticket for ${departmentCode} added to print spool`);
