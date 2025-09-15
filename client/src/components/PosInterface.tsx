@@ -1063,17 +1063,17 @@ export function PosInterface() {
 
       {/* Printer Settings Dialog */}
       <Dialog open={showPrinterDialog} onOpenChange={setShowPrinterDialog}>
-        <DialogContent className="max-w-lg" data-testid="dialog-printer-settings">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" data-testid="dialog-printer-settings">
           <DialogHeader>
             <DialogTitle>Configurazione Stampanti</DialogTitle>
           </DialogHeader>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="auto" data-testid="tab-auto-printers">Stampanti Automatiche</TabsTrigger>
               <TabsTrigger value="manual" data-testid="tab-manual-printers">Configurazione Manuale</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="auto" className="space-y-6 mt-6">
+            <TabsContent value="auto" className="space-y-6 mt-6 flex-1 overflow-y-auto pr-2">
               {/* Auto-print Status */}
               <div>
                 <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
@@ -1124,7 +1124,7 @@ export function PosInterface() {
                       <p className="text-xs mt-1">Verifica che le stampanti siano accese e connesse alla rete</p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                    <div className="divide-y divide-gray-200 dark:divide-gray-600 max-h-60 overflow-y-auto">
                       {availablePrinters.map((printer: any, index: number) => (
                         <div key={printer.name || index} className="p-3 flex items-center justify-between" data-testid={`printer-option-${printer.name}`}>
                           <div className="flex items-center space-x-3">
@@ -1218,7 +1218,7 @@ export function PosInterface() {
               )}
             </TabsContent>
 
-            <TabsContent value="manual" className="space-y-6 mt-6">
+            <TabsContent value="manual" className="space-y-6 mt-6 flex-1 overflow-y-auto pr-2">
               {/* Manual Printer Configuration Form */}
               <div>
                 <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">
@@ -1372,7 +1372,7 @@ export function PosInterface() {
                       <p className="text-xs mt-1">Aggiungi una stampante utilizzando il modulo sopra</p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-200 dark:divide-gray-600">
+                    <div className="divide-y divide-gray-200 dark:divide-gray-600 max-h-60 overflow-y-auto">
                       {manualPrinters.map((printer) => (
                         <div key={printer.id} className="p-3" data-testid={`manual-printer-${printer.id}`}>
                           <div className="flex items-center justify-between">
