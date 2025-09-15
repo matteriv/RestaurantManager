@@ -137,6 +137,16 @@ export class AutoPrintService {
   ): Promise<PrintJob[]> {
     const jobs: PrintJob[] = [];
     
+    // 🔍 DEBUG: Log the entire payment response
+    console.log('🔍 DEBUG: Payment response received for auto-print:', {
+      receiptUrls: paymentResponse.receiptUrls,
+      departmentReceiptUrls: paymentResponse.departmentReceiptUrls,
+      hasReceiptUrls: !!paymentResponse.receiptUrls,
+      hasDepartmentUrls: !!paymentResponse.departmentReceiptUrls,
+      departmentUrlsKeys: paymentResponse.departmentReceiptUrls ? Object.keys(paymentResponse.departmentReceiptUrls) : [],
+      departmentUrlsCount: paymentResponse.departmentReceiptUrls ? Object.keys(paymentResponse.departmentReceiptUrls).length : 0
+    });
+    
     // Get default customer receipt printer
     const defaultPrinter = printerConfigs.find(p => p.isDefault && p.isActive);
     
