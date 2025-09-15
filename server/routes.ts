@@ -1901,37 +1901,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('🖨️ Batch print API request:', JSON.stringify(req.body, null, 2));
       
-      const { urls, printerName, copies = 1, silent = true } = req.body;
+      // Define Zod schema for batch print requests
+      const batchPrintSchema = z.object({
+        urls: z.array(z.string().url()).min(1, "At least one URL is required for batch printing"),
+        printerName: printerNameSchema.optional(),
+        copies: z.number().int().min(1).max(999).optional().default(1),
+        silent: z.boolean().optional().default(true),
+        pageSize: z.enum(['A4', 'Letter', 'Legal', 'A3', 'A5']).optional(),
+        orientation: z.enum(['portrait', 'landscape']).optional(),
+        colorMode: z.enum(['color', 'monochrome']).optional(),
+        duplex: z.enum(['none', 'long-edge', 'short-edge']).optional(),
+        quality: z.enum(['draft', 'normal', 'high']).optional(),
+        mediaType: z.enum(['plain', 'photo', 'transparency']).optional()
+      });
 
-      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      // Validate request body using Zod schema
+      const validationResult = batchPrintSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        console.error('❌ Batch print validation failed:', validationResult.error.errors);
         return res.status(400).json({ 
           success: false, 
-          error: "URLs array is required for batch printing"
+          error: "Invalid batch print request data",
+          details: validationResult.error.errors
         });
       }
+
+      const { urls, printerName, copies, silent, ...options } = validationResult.data;
 
       if (!printerName) {
         return res.status(400).json({ 
           success: false, 
-          error: "Printer name is required"
+          error: "Printer name is required for batch printing"
         });
       }
 
-      console.log(`🖨️ Batch print: ${urls.length} documents to ${printerName}`);
+      // Enhanced logging for URL processing
+      console.log(`🖨️ Batch print validated: ${urls.length} documents to ${printerName}`);
+      console.log(`📋 URLs breakdown:`);
+      urls.forEach((url, index) => {
+        const urlType = url.includes('/receipt/') ? 'customer_receipt' : 
+                       url.includes('/department-ticket/') ? 'department_ticket' : 'unknown';
+        console.log(`  ${index + 1}. ${urlType}: ${url}`);
+      });
 
-      // Extract print options
+      // Extract print options from validated data
       const printOptions: PrintOptions = {
         copies,
         silent,
-        pageSize: req.body.pageSize,
-        orientation: req.body.orientation,
-        colorMode: req.body.colorMode,
-        duplex: req.body.duplex,
-        quality: req.body.quality,
-        mediaType: req.body.mediaType
+        pageSize: options.pageSize,
+        orientation: options.orientation,
+        colorMode: options.colorMode,
+        duplex: options.duplex,
+        quality: options.quality,
+        mediaType: options.mediaType
       };
 
       // Download and combine all URLs into a single HTML document
+      console.log(`🔗 Combining ${urls.length} URLs for batch print`);
       const combinedContent = await combinePrintUrls(urls);
       
       // Log the batch print request
@@ -1948,10 +1974,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Print the combined document as a single job
-      console.log(`🖨️ Printing combined document with ${urls.length} pages`);
+      console.log(`🖨️ Printing combined document with ${urls.length} pages to ${printerName}`);
+      console.log(`📄 Combined document size: ${combinedContent.length} characters`);
+      
       const printResult = await printDocument(printerName, combinedContent, printOptions);
       
-      console.log(`${printResult.success ? '✅' : '❌'} Batch print result:`, printResult);
+      console.log(`${printResult.success ? '✅' : '❌'} Batch print result for ${urls.length} documents:`, {
+        success: printResult.success,
+        jobId: printResult.jobId,
+        message: printResult.message,
+        printerName: printResult.printerName,
+        documentsProcessed: urls.length
+      });
+
+      if (printResult.success) {
+        console.log(`🎉 Successfully processed batch with ${urls.length} documents (customer receipt + department tickets)`);
+      } else {
+        console.error(`💥 Batch print failed after processing ${urls.length} URLs:`, printResult.error);
+      }
 
       // Log batch print completion
       try {
