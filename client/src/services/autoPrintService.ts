@@ -9,7 +9,7 @@ export interface PrintJob {
   id: string;
   type: 'batch_print'; // Changed to support batch printing
   urls: string[]; // Array of URLs to print in batch
-  urlTypes: Array<'customer_receipt' | 'department_ticket'>; // Types for each URL
+  urlTypes: Array<'customer_receipt' | 'department_ticket' | 'batch_combined'>; // Types for each URL
   departmentCodes: Array<string | null>; // Department codes for each URL (null for customer receipt)
   printerName?: string;
   status: 'pending' | 'printing' | 'success' | 'failed' | 'retry';
@@ -177,11 +177,11 @@ export class AutoPrintService {
    */
   private collectPrintUrls(paymentResponse: PaymentResponse): {
     urls: string[];
-    urlTypes: Array<'customer_receipt' | 'department_ticket'>;
+    urlTypes: Array<'customer_receipt' | 'department_ticket' | 'batch_combined'>;
     departmentCodes: Array<string | null>;
   } {
     const urls: string[] = [];
-    const urlTypes: Array<'customer_receipt' | 'department_ticket'> = [];
+    const urlTypes: Array<'customer_receipt' | 'department_ticket' | 'batch_combined'> = [];
     const departmentCodes: Array<string | null> = [];
     
     // 🔍 DEBUG: Log the entire payment response
@@ -301,16 +301,30 @@ export class AutoPrintService {
   }
 
   /**
-   * Process batch printing with network/system printer
+   * Process batch printing with network/system printer - ENHANCED with detailed logging
    */
   private async processBatchWithSystemPrinter(batchJob: PrintJob): Promise<void> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.NETWORK_TIMEOUT);
     
     try {
-      console.log(`🖨️ Sending batch print request to ${batchJob.printerName}`);
-      console.log(`  → URLs: ${batchJob.totalUrls}`);
-      console.log(`  → Types: ${batchJob.urlTypes.join(', ')}`);
+      // Enhanced logging for CUPS path selection
+      console.log(`🎯 CUPS/NETWORK PRINTER PATH SELECTED:`);
+      console.log(`  → Total documents: ${batchJob.totalUrls}`);
+      console.log(`  → Print method: Network printer (single spool via CUPS)`);
+      console.log(`  → Target printer: ${batchJob.printerName}`);
+      console.log(`  → Network attempt: ${batchJob.networkAttempts}/${this.MAX_NETWORK_ATTEMPTS}`);
+      
+      // Log document breakdown
+      console.log(`📋 Documents to combine for CUPS batch:`);
+      batchJob.urls.forEach((url, index) => {
+        const urlType = batchJob.urlTypes[index];
+        const departmentCode = batchJob.departmentCodes[index];
+        console.log(`  ${index + 1}. ${urlType}${departmentCode ? ` (${departmentCode})` : ''}: ${url}`);
+      });
+
+      console.log(`🔄 Calling /api/print/batch for CUPS batch printing...`);
+      console.log(`🖨️ Sending batch print request to ${batchJob.printerName} via CUPS`);
       
       // Call backend batch print API with timeout
       const response = await apiRequest('POST', '/api/print/batch', {
@@ -336,7 +350,12 @@ export class AutoPrintService {
         throw new Error(result.error || 'Batch print failed on server');
       }
       
-      console.log(`✅ Network batch print completed for job ${batchJob.id}:`, result);
+      console.log(`✅ CUPS batch print completed successfully:`);
+      console.log(`  → Method: Network printer ${batchJob.printerName} (single spool)`);
+      console.log(`  → Documents processed: ${batchJob.totalUrls}`);
+      console.log(`  → Job ID: ${result.jobId || 'unknown'}`);
+      console.log(`  → All documents in same spool: ✓`);
+      console.log(`  → Server response:`, result);
       
     } catch (error) {
       clearTimeout(timeoutId);
@@ -366,46 +385,106 @@ export class AutoPrintService {
   }
 
   /**
-   * Process batch printing with browser fallback
+   * Process batch printing with browser fallback - ENHANCED for single spool printing
    */
   private async processBatchWithBrowser(batchJob: PrintJob): Promise<void> {
-    console.log(`🌐 Processing batch browser print for ${batchJob.totalUrls} documents`);
+    console.log(`🌐 Processing batch browser print for ${batchJob.totalUrls} documents using SINGLE SPOOL approach`);
     
     batchJob.fallbackAttempts = (batchJob.fallbackAttempts || 0) + 1;
+
+    // Enhanced logging for browser fallback path selection
+    console.log(`🎯 BROWSER FALLBACK PATH SELECTED:`);
+    console.log(`  → Total documents: ${batchJob.totalUrls}`);
+    console.log(`  → Print method: Combined HTML (single spool)`);
+    console.log(`  → Fallback attempt: ${batchJob.fallbackAttempts}`);
     
-    // Print each URL individually with browser
-    for (let i = 0; i < batchJob.urls.length; i++) {
-      const url = batchJob.urls[i];
-      const urlType = batchJob.urlTypes[i];
-      const departmentCode = batchJob.departmentCodes[i];
-      
-      try {
-        console.log(`🌐 Browser printing document ${i + 1}/${batchJob.totalUrls}: ${urlType}${departmentCode ? ` (${departmentCode})` : ''}`);
-        
-        // Create a temporary print job for individual URL
-        const tempJob: PrintJob = {
-          ...batchJob,
-          id: `${batchJob.id}-${i}`,
-          urls: [url],
-          urlTypes: [urlType],
-          departmentCodes: [departmentCode],
-          totalUrls: 1
-        };
-        
-        await this.printWithBrowser(url, tempJob);
-        
-        // Small delay between browser prints to avoid conflicts
-        if (i < batchJob.urls.length - 1) {
-          await this.delay(1200); // Increased delay for batch browser printing
-        }
-        
-      } catch (error) {
-        console.error(`❌ Browser print failed for document ${i + 1}: ${urlType}`, error);
-        throw new Error(`Browser batch print failed at document ${i + 1}: ${error instanceof Error ? error.message : String(error)}`);
+    // Log document breakdown
+    console.log(`📋 Documents to combine for browser fallback:`);
+    batchJob.urls.forEach((url, index) => {
+      const urlType = batchJob.urlTypes[index];
+      const departmentCode = batchJob.departmentCodes[index];
+      console.log(`  ${index + 1}. ${urlType}${departmentCode ? ` (${departmentCode})` : ''}: ${url}`);
+    });
+
+    try {
+      // Convert full URLs to relative paths for security
+      const relativeUrls = batchJob.urls.map(url => {
+        const urlObj = new URL(url);
+        return urlObj.pathname + urlObj.search; // Keep path and query params but remove host
+      });
+
+      console.log(`🔗 Combining ${relativeUrls.length} URLs using browser fallback route`);
+      console.log(`🔄 Calling /api/print/combine for single spool generation...`);
+
+      // Call the combine API to get a single HTML document
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.BROWSER_TIMEOUT);
+
+      const response = await apiRequest('POST', '/api/print/combine', {
+        urls: relativeUrls
+      }, controller.signal);
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Browser combine API failed: ${response.status} - ${error}`);
       }
+
+      // Get the combined HTML content
+      const combinedHtml = await response.text();
+      
+      console.log(`✅ Browser combine API successful:`);
+      console.log(`  → Combined HTML size: ${combinedHtml.length} characters`);
+      console.log(`  → Documents combined: ${relativeUrls.length}`);
+      console.log(`  → Ready for SINGLE browser print job`);
+
+      // Create a blob URL for the combined HTML content
+      const blob = new Blob([combinedHtml], { type: 'text/html' });
+      const combinedUrl = URL.createObjectURL(blob);
+
+      // Create a single print job for the combined document
+      const combinedJob: PrintJob = {
+        ...batchJob,
+        id: `${batchJob.id}-combined`,
+        urls: [combinedUrl],
+        urlTypes: ['batch_combined'],
+        departmentCodes: [null],
+        totalUrls: 1
+      };
+
+      console.log(`🖨️ Starting SINGLE browser print for combined document (${batchJob.totalUrls} documents in one spool)`);
+      
+      // Print the single combined document
+      await this.printWithBrowser(combinedUrl, combinedJob);
+      
+      // Clean up the blob URL
+      URL.revokeObjectURL(combinedUrl);
+      
+      console.log(`✅ Browser batch print completed successfully:`);
+      console.log(`  → Method: Browser fallback (single spool)`);
+      console.log(`  → Documents processed: ${batchJob.totalUrls}`);
+      console.log(`  → Print jobs created: 1 (combined)`);
+      console.log(`  → All documents in same spool: ✓`);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Browser fallback combine failed:`, error);
+      console.error(`  → Documents attempted: ${batchJob.totalUrls}`);
+      console.error(`  → Fallback attempt: ${batchJob.fallbackAttempts}`);
+      console.error(`  → Error: ${errorMessage}`);
+      
+      // Check if this was a timeout
+      if (errorMessage.includes('abort') || errorMessage.includes('timeout')) {
+        batchJob.errorType = 'timeout';
+      } else if (errorMessage.includes('combine') || errorMessage.includes('API')) {
+        batchJob.errorType = 'network';
+      } else {
+        batchJob.errorType = 'browser';
+      }
+      
+      throw new Error(`Browser fallback combine failed: ${errorMessage}`);
     }
-    
-    console.log(`✅ Browser batch print completed for all ${batchJob.totalUrls} documents`);
   }
 
   /**

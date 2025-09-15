@@ -1901,9 +1901,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('🖨️ Batch print API request:', JSON.stringify(req.body, null, 2));
       
-      // Define Zod schema for batch print requests
+      // Enhanced Zod schema for batch print requests with URL security validation
+      const batchPrintUrlSchema = z.string().url()
+        .refine((url) => {
+          try {
+            const urlObj = new URL(url);
+            // Security: Only allow URLs from same origin with receipt/ticket paths
+            const path = urlObj.pathname;
+            return path.startsWith('/api/receipt/') || 
+                   path.startsWith('/api/department-ticket/') ||
+                   path.startsWith('/api/receipts/') ||
+                   path.startsWith('/api/department-tickets/');
+          } catch {
+            return false;
+          }
+        }, 'Only receipt/ticket URLs from same origin are allowed for security');
+
       const batchPrintSchema = z.object({
-        urls: z.array(z.string().url()).min(1, "At least one URL is required for batch printing"),
+        urls: z.array(batchPrintUrlSchema).min(1, "At least one URL is required for batch printing"),
         printerName: printerNameSchema.optional(),
         copies: z.number().int().min(1).max(999).optional().default(1),
         silent: z.boolean().optional().default(true),
@@ -2039,6 +2054,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date().toISOString(),
         batchPrint: true,
         fallbackToBrowser: true
+      });
+    }
+  });
+
+  // Browser fallback route - Combines URLs into single HTML for browser printing
+  app.post('/api/print/combine', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('🌐 Browser fallback combine API request:', JSON.stringify(req.body, null, 2));
+      
+      // Enhanced validation schema for browser fallback combining
+      const relativePrintPathSchema = z.string()
+        .refine((url) => {
+          // Security: Only allow relative paths to receipt/ticket endpoints
+          return url.startsWith('/api/receipt/') || 
+                 url.startsWith('/api/department-ticket/') ||
+                 url.startsWith('/api/receipts/') ||
+                 url.startsWith('/api/department-tickets/');
+        }, 'Only relative paths to receipt/ticket endpoints are allowed for security');
+
+      const combinePrintSchema = z.object({
+        urls: z.array(relativePrintPathSchema).min(1, "At least one URL is required for combining"),
+        baseUrl: z.string().url().optional() // Optional base URL for constructing full URLs
+      });
+
+      // Validate request body
+      const validationResult = combinePrintSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        console.error('❌ Combine print validation failed:', validationResult.error.errors);
+        return res.status(400).json({ 
+          success: false, 
+          error: "Invalid combine print request data",
+          details: validationResult.error.errors
+        });
+      }
+
+      const { urls, baseUrl } = validationResult.data;
+
+      // Construct full URLs from relative paths
+      const protocol = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
+      const host = req.headers['x-forwarded-host'] || req.headers.host;
+      const fullBaseUrl = baseUrl || `${protocol}://${host}`;
+      
+      const fullUrls = urls.map(url => `${fullBaseUrl}${url}`);
+
+      // Enhanced logging for browser fallback path
+      console.log(`🌐 Browser fallback combine: ${urls.length} documents`);
+      console.log(`📋 URLs breakdown for browser fallback:`);
+      urls.forEach((url, index) => {
+        const urlType = url.includes('/receipt/') ? 'customer_receipt' : 
+                       url.includes('/department-ticket/') ? 'department_ticket' : 'unknown';
+        console.log(`  ${index + 1}. ${urlType}: ${url}`);
+      });
+      console.log(`🎯 Browser fallback path selected - will combine into single HTML document`);
+
+      // Combine all URLs into a single HTML document using existing function
+      console.log(`🔗 Combining ${fullUrls.length} URLs for browser fallback`);
+      const combinedContent = await combinePrintUrls(fullUrls);
+      
+      console.log(`✅ Browser fallback combine completed:`);
+      console.log(`  → Combined document size: ${combinedContent.length} characters`);
+      console.log(`  → Documents processed: ${urls.length}`);
+      console.log(`  → Ready for single browser print job`);
+
+      // Log the combine request
+      try {
+        const userId = req.user?.claims?.sub || 'unknown';
+        await storage.createPrintLog({
+          printType: 'browser_combine',
+          targetPrinter: 'browser_fallback',
+          content: `Browser combine: ${urls.length} documents`,
+          status: 'success',
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log combine request:', logError);
+      }
+
+      // Return the combined HTML content with proper headers
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('X-Print-Method', 'browser-fallback');
+      res.setHeader('X-Documents-Combined', urls.length.toString());
+      
+      res.status(200).send(combinedContent);
+
+    } catch (error) {
+      console.error('❌ Browser fallback combine error:', error);
+      
+      // Log failed combine request
+      try {
+        const { urls } = req.body;
+        const userId = req.user?.claims?.sub || 'unknown';
+        
+        await storage.createPrintLog({
+          printType: 'browser_combine',
+          targetPrinter: 'browser_fallback',
+          content: `Browser combine: ${urls?.length || 0} documents`,
+          status: 'failed',
+          printedAt: new Date(),
+        });
+      } catch (logError) {
+        console.warn('Failed to log combine error:', logError);
+      }
+
+      const errorMessage = error instanceof Error ? error.message : 'Browser fallback combine failed';
+      res.status(500).json({ 
+        success: false, 
+        error: errorMessage,
+        method: 'browser-fallback',
+        timestamp: new Date().toISOString()
       });
     }
   });
