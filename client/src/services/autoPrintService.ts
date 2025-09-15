@@ -342,14 +342,14 @@ export class AutoPrintService {
       clearTimeout(timeoutId);
       
       // Check if this was an abort (timeout)
-      if (error.name === 'AbortError' || error.message?.includes('abort') || error.message?.includes('signal')) {
+      if ((error as any)?.name === 'AbortError' || (error as any)?.message?.includes('abort') || (error as any)?.message?.includes('signal')) {
         batchJob.errorType = 'timeout';
         throw new Error(`Network timeout after ${this.NETWORK_TIMEOUT}ms`);
       }
       
       // If no error type set, determine from error message
       if (!batchJob.errorType) {
-        const errorMsg = error.message?.toLowerCase() || '';
+        const errorMsg = (error as any)?.message?.toLowerCase() || '';
         if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
           batchJob.errorType = 'network';
         } else if (errorMsg.includes('timeout')) {
@@ -400,7 +400,7 @@ export class AutoPrintService {
         
       } catch (error) {
         console.error(`❌ Browser print failed for document ${i + 1}: ${urlType}`, error);
-        throw new Error(`Browser batch print failed at document ${i + 1}: ${error.message}`);
+        throw new Error(`Browser batch print failed at document ${i + 1}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     
@@ -449,7 +449,7 @@ export class AutoPrintService {
         
       } catch (fallbackError) {
         console.error(`❌ Browser fallback also failed for batch job ${batchJob.id}:`, fallbackError);
-        batchJob.error = `Network failed: ${errorMessage}; Browser fallback failed: ${fallbackError.message}`;
+        batchJob.error = `Network failed: ${errorMessage}; Browser fallback failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`;
         batchJob.errorType = 'browser';
       }
     }
@@ -525,14 +525,14 @@ export class AutoPrintService {
         // Use browser printing (fallback or direct)
         job.fallbackAttempts = (job.fallbackAttempts || 0) + 1;
         console.log(`🌐 Using browser fallback for job ${job.id} (fallback attempt ${job.fallbackAttempts})`);
-        await this.printWithBrowser(job.url, job);
+        await this.printWithBrowser(job.urls[0], job);
         job.usedFallback = true;
         job.errorType = undefined; // Clear error type on success
       } else if (job.printerName && !job.usedFallback) {
         // Try network printer first
         job.networkAttempts = (job.networkAttempts || 0) + 1;
         console.log(`🖨️ Attempting network print on ${job.printerName} (network attempt ${job.networkAttempts}/${this.MAX_NETWORK_ATTEMPTS})`);
-        await this.printWithSystemPrinterEnhanced(job.url, job.printerName, job);
+        await this.printWithSystemPrinterEnhanced(job.urls[0], job.printerName, job);
       } else {
         throw new Error('No printer specified for print job');
       }
@@ -687,14 +687,14 @@ export class AutoPrintService {
       clearTimeout(timeoutId);
       
       // Check if this was an abort (timeout)
-      if (error.name === 'AbortError' || error.message?.includes('abort') || error.message?.includes('signal')) {
+      if ((error as any)?.name === 'AbortError' || (error as any)?.message?.includes('abort') || (error as any)?.message?.includes('signal')) {
         job.errorType = 'timeout';
         throw new Error(`Network timeout after ${this.NETWORK_TIMEOUT}ms`);
       }
       
       // If no error type set, determine from error message
       if (!job.errorType) {
-        const errorMsg = error.message?.toLowerCase() || '';
+        const errorMsg = (error as any)?.message?.toLowerCase() || '';
         if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
           job.errorType = 'network';
         } else if (errorMsg.includes('timeout')) {
@@ -732,7 +732,7 @@ export class AutoPrintService {
         
         this.emit('print-fallback-started', { job, reason: job.errorType || 'network_error' });
         
-        await this.printWithBrowser(job.url, job);
+        await this.printWithBrowser(job.urls[0], job);
         
         job.status = 'success';
         console.log(`✅ Print job ${job.id} completed successfully using browser fallback`);
@@ -741,7 +741,7 @@ export class AutoPrintService {
         
       } catch (fallbackError) {
         console.error(`❌ Browser fallback also failed for job ${job.id}:`, fallbackError);
-        job.error = `Network failed: ${errorMessage}; Browser fallback failed: ${fallbackError.message}`;
+        job.error = `Network failed: ${errorMessage}; Browser fallback failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`;
         job.errorType = 'browser';
       }
     }
@@ -851,6 +851,39 @@ export class AutoPrintService {
     } catch (error) {
       console.error('Failed to get printer configurations:', error);
       return [];
+    }
+  }
+
+  /**
+   * Process the current print queue
+   */
+  private async processQueue(): Promise<AutoPrintResult> {
+    if (this.isProcessing) {
+      console.log('⚠️ Queue already being processed');
+      return this.getQueueResult();
+    }
+
+    this.isProcessing = true;
+    console.log(`🔄 Processing print queue with ${this.printQueue.length} jobs`);
+
+    try {
+      // Process all pending and retry jobs
+      const jobsToProcess = this.printQueue.filter(job => 
+        job.status === 'pending' || job.status === 'retry'
+      );
+
+      for (const job of jobsToProcess) {
+        try {
+          await this.processPrintJob(job);
+        } catch (error) {
+          // Individual job errors are handled in processPrintJob
+          console.error(`Failed to process job ${job.id}:`, error);
+        }
+      }
+
+      return this.getQueueResult();
+    } finally {
+      this.isProcessing = false;
     }
   }
 
