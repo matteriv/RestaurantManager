@@ -144,7 +144,7 @@ export class AutoPrintService {
     if (paymentResponse.receiptUrls?.printable && defaultPrinter) {
       jobs.push({
         id: `customer-${Date.now()}`,
-        type: 'receipt',
+        type: 'customer_receipt',
         url: paymentResponse.receiptUrls.printable,
         printerName: defaultPrinter.printerName,
         priority: 1,
@@ -187,7 +187,7 @@ export class AutoPrintService {
     if (jobs.length === 0 && paymentResponse.receiptUrls?.printable) {
       jobs.push({
         id: `manual-${Date.now()}`,
-        type: 'receipt',
+        type: 'customer_receipt',
         url: paymentResponse.receiptUrls.printable,
         printerName: 'browser_default',
         priority: 1,
@@ -237,7 +237,7 @@ export class AutoPrintService {
       // Group jobs by printer for batch printing
       const jobsByPrinter = this.groupJobsByPrinter();
       
-      for (const [printerName, jobs] of jobsByPrinter.entries()) {
+      for (const [printerName, jobs] of Array.from(jobsByPrinter.entries())) {
         const pendingJobs = jobs.filter(job => job.status === 'pending' || job.status === 'retry');
         
         if (pendingJobs.length === 0) continue;
@@ -318,12 +318,14 @@ export class AutoPrintService {
         try {
           console.log(`🖨️ Sending batch print request: ${urls.length} URLs to ${printerName} (${printerName === 'browser_default' ? 'browser printing' : 'network/CUPS printing'})`);
           
-          const result = await apiRequest('POST', '/api/print/batch', {
+          const response = await apiRequest('POST', '/api/print/batch', {
             urls: urls,
             printerName: printerName,
             copies: 1,
             silent: true
           });
+          
+          const result = await response.json();
           
           if (result.success) {
             // Mark all jobs as successful
@@ -535,13 +537,14 @@ export class AutoPrintService {
       console.log(`🖨️ Sending print request to ${printerName} for job ${job.id}`);
       
       // Call backend print API with timeout
-      const result = await apiRequest('POST', '/api/print/direct', {
+      const response = await apiRequest('POST', '/api/print/direct', {
         url: url,
         printerName: printerName,
         copies: 1,
         silent: true
       }, controller.signal);
 
+      const result = await response.json();
       clearTimeout(timeoutId);
       
       if (!result.success) {

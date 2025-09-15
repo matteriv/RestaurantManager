@@ -99,12 +99,6 @@ export function PosInterface() {
   const { data: categories = [], isLoading: categoriesLoading, error: categoriesError } = useQuery<MenuCategory[]>({
     queryKey: ['/api/menu/categories'],
     refetchInterval: 60000, // Refresh every minute
-    onSuccess: (data) => {
-      console.log('📋 Menu categories loaded successfully:', data?.length || 0, 'categories');
-    },
-    onError: (error) => {
-      console.error('❌ Failed to load menu categories:', error);
-    }
   });
   
   // Log categories loading state
@@ -149,12 +143,6 @@ export function PosInterface() {
   const { data: menuItems = [], isLoading: itemsLoading, error: itemsError } = useQuery<MenuItem[]>({
     queryKey: selectedCategory ? ['/api/menu/items', `?categoryId=${selectedCategory}`] : ['/api/menu/items'],
     refetchInterval: 15000, // Refresh every 15 seconds for products
-    onSuccess: (data) => {
-      console.log('🍽️ Menu items loaded successfully:', data?.length || 0, 'items for category:', selectedCategory || 'all');
-    },
-    onError: (error) => {
-      console.error('❌ Failed to load menu items:', error);
-    }
   });
   
   // Log menu items loading state
