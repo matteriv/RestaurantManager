@@ -342,14 +342,15 @@ export class AutoPrintService {
       clearTimeout(timeoutId);
       
       // Check if this was an abort (timeout)
-      if ((error as any)?.name === 'AbortError' || (error as any)?.message?.includes('abort') || (error as any)?.message?.includes('signal')) {
+      const errorAsError = error instanceof Error ? error : new Error(String(error));
+      if (errorAsError.name === 'AbortError' || errorAsError.message?.includes('abort') || errorAsError.message?.includes('signal')) {
         batchJob.errorType = 'timeout';
         throw new Error(`Network timeout after ${this.NETWORK_TIMEOUT}ms`);
       }
       
       // If no error type set, determine from error message
       if (!batchJob.errorType) {
-        const errorMsg = (error as any)?.message?.toLowerCase() || '';
+        const errorMsg = errorAsError.message?.toLowerCase() || '';
         if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
           batchJob.errorType = 'network';
         } else if (errorMsg.includes('timeout')) {
@@ -687,14 +688,15 @@ export class AutoPrintService {
       clearTimeout(timeoutId);
       
       // Check if this was an abort (timeout)
-      if ((error as any)?.name === 'AbortError' || (error as any)?.message?.includes('abort') || (error as any)?.message?.includes('signal')) {
+      const jobErrorAsError = error instanceof Error ? error : new Error(String(error));
+      if (jobErrorAsError.name === 'AbortError' || jobErrorAsError.message?.includes('abort') || jobErrorAsError.message?.includes('signal')) {
         job.errorType = 'timeout';
         throw new Error(`Network timeout after ${this.NETWORK_TIMEOUT}ms`);
       }
       
       // If no error type set, determine from error message
       if (!job.errorType) {
-        const errorMsg = (error as any)?.message?.toLowerCase() || '';
+        const errorMsg = jobErrorAsError.message?.toLowerCase() || '';
         if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
           job.errorType = 'network';
         } else if (errorMsg.includes('timeout')) {
