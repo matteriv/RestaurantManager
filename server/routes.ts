@@ -1004,7 +1004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const paymentInfo: PaymentInfo = {
             method: 'cash',
             amount: parseFloat(total),
-            amountPaid: parseFloat(total),
+            received: parseFloat(total),
             change: 0,
             transactionId: receiptId
           };
@@ -1015,7 +1015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Create print log for customer receipt
           await storage.createPrintLog({
             orderId: order.id,
-            printType: 'customer_receipt',
+            printType: 'receipt',
             departmentId: null,
             targetPrinter: null,
             content: customerReceiptHTML,
@@ -1520,7 +1520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let departmentCode = null;
         let priority = 3; // Default lowest priority
         
-        if (log.printType === 'customer_receipt') {
+        if (log.printType === 'receipt') {
           documentType = 'customer_receipt';
           priority = 1; // Highest priority for customer receipts
         } else if (log.printType === 'department_ticket') {
@@ -1535,9 +1535,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               departmentCode = dept.code;
             }
           }
-        } else if (log.printType === 'test_page') {
-          documentType = 'test_page';
-          priority = 3;
         }
         
         return {
@@ -1550,7 +1547,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderId: log.orderId || null,
           // Additional fields for debugging
           targetPrinter: log.targetPrinter,
-          attempts: log.attempts || 0,
+          attempts: log.retryCount || 0,
           errorMessage: log.errorMessage || null,
         };
       });
